@@ -13,8 +13,9 @@ Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
 
+from re import search
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from telegram import ReplyKeyboardMarkup, Update, ReplyKeyboardRemove
 from telegram.ext import (
@@ -27,11 +28,13 @@ from telegram.ext import (
     CallbackContext,
 )
 
+import firebase_admin
+from firebase_admin import db
+
+
 from ptb_firebase_persistence import FirebasePersistence
 
-my_persistence = FirebasePersistence(
-    database_url='https://badfest-invites-default-rtdb.europe-west1.firebasedatabase.app',
-    credentials={
+cred = {
         "type": "service_account",
         "project_id": "badfest-invites",
         "private_key_id": "4158f99ccf234c050bb44fb1e4363c45b121570a",
@@ -43,7 +46,17 @@ my_persistence = FirebasePersistence(
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-pzg12%40badfest-invites.iam.gserviceaccount.com"
     }
+db_url = 'https://badfest-invites-default-rtdb.europe-west1.firebasedatabase.app'
+
+my_persistence = FirebasePersistence(
+    store_bot_data=False,
+    store_chat_data=False,
+    database_url= db_url,
+    credentials= cred
 )
+
+# firebaseApp = firebase_admin.initialize_app(firebase_admin.credentials.Certificate(cred), {"databaseURL": db_url})
+# convs = db.reference("conversations")
 
 # Enable logging
 logging.basicConfig(
@@ -52,14 +65,18 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
+STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE = (4, 6, 7, 8, 9)
+WELCOME = 'just_open_bot'
+IN_WAITING_LIST = 'waiting_list'
 
-reply_keyboard = [
-    ['Age', 'Favourite colour'],
-    ['Number of siblings', 'Something else...'],
-    ['Done'],
-]
-markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+state_texts = dict([
+    (STARTING, 'Привет! Это бот BadFest 2021'),
+    (WAITING_NAME, 'Такс, давай знакомиться! Немного вопросиков, чтобы мы знали, кто ты такой(ая). \nКак тебя зовут?'),
+    (WAITING_INSTA, 'Скинь, плиз, ссылку на инсту'),
+    (WAITING_VK, 'Скинь, плиз, ссылку на vk'),
+    (WAITING_APPROVE, 'Ееееее! Ну все, теперь жди - как только модераторы тебя чекнут, тебе прилетят реферальные '
+                      'ссылки, " \ "чтобы пригласить друзей, а также ты сможешь оплатить билет прямо тут.')
+])
 
 
 def facts_to_str(user_data: Dict[str, str]) -> str:
@@ -72,107 +89,133 @@ def facts_to_str(user_data: Dict[str, str]) -> str:
 
 
 def start(update: Update, context: CallbackContext) -> int:
-    reply_text = "Привет! Ты пришел без кода"
-    if context.user_data:
-        reply_text += (
-            f" You already told me your {', '.join(context.user_data.keys())}. Why don't you "
-            f"tell me something more about yourself? Or change anything I already know."
-        )
-    else:
-        reply_text += (
-            " I will hold a more complex conversation with you. Why don't you tell me "
-            "something about yourself?"
-        )
-    update.message.reply_text(reply_text, reply_markup=markup)
-
-    return CHOOSING
-
-
-def regular_choice(update: Update, context: CallbackContext) -> int:
-    text = update.message.text.lower()
-    context.user_data['choice'] = text
-    if context.user_data.get(text):
-        reply_text = (
-            f'Your {text}? I already know the following about that: {context.user_data[text]}'
-        )
-    else:
-        reply_text = f'Your {text}? Yes, I would love to hear about that!'
-    update.message.reply_text(reply_text)
-
-    return TYPING_REPLY
-
-
-def custom_choice(update: Update, _: CallbackContext) -> int:
+    reply_text = state_texts[STARTING]
+    context.user_data['status'] = WELCOME
     update.message.reply_text(
-        'Alright, please send me the category first, for example "Most impressive skill"'
-    )
+        reply_text, reply_markup=ReplyKeyboardMarkup([
+            ['Join waiting list'],
+            ['Status', 'Info']], one_time_keyboard=True))
 
-    return TYPING_CHOICE
+    return STARTING
 
 
-def received_information(update: Update, context: CallbackContext) -> int:
+def join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]:
+    if context.user_data['status'] is not WELCOME:
+        update.message.reply_text(
+            'Чет у тебя не тот статус, чтобы в списке ожидания быть'
+        )
+        return None
+    context.user_data['status'] = IN_WAITING_LIST
+
+    update.message.reply_text(
+        state_texts[WAITING_NAME],
+        reply_markup=ReplyKeyboardMarkup([
+            ['Status', 'Info']], one_time_keyboard=True))
+
+    return WAITING_NAME
+
+
+def set_name(update: Update, context: CallbackContext) -> int:
     text = update.message.text
-    category = context.user_data['choice']
-    context.user_data[category] = text.lower()
-    del context.user_data['choice']
-
+    context.user_data['name'] = text
+    reply_text = (
+        f'Приветы, {text}! Скинь, плиз, ссылку на инсту'
+    )
     update.message.reply_text(
-        "Neat! Just so you know, this is what you already told me:"
-        f"{facts_to_str(context.user_data)}"
-        "You can tell me more, or change your opinion on "
-        "something.",
-        reply_markup=markup,
+        reply_text, reply_markup=ReplyKeyboardMarkup([
+            ['Status', 'Info']], one_time_keyboard=True))
+
+    return WAITING_INSTA
+
+
+def set_insta(update: Update, context: CallbackContext) -> Optional[int]:
+    text = update.message.text
+    if not search('instagram.com', text):
+        replay_text = "Хах, это не инста! Давай-ка ссылку на инсту, например, https://www.instagram.com/badfestbad"
+        update.message.reply_text(
+            replay_text, reply_markup=ReplyKeyboardMarkup([
+                ['Status', 'Info']], one_time_keyboard=True))
+        return None
+
+    context.user_data['insta'] = text
+    reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, плиз"
+    update.message.reply_text(
+        reply_text, reply_markup=ReplyKeyboardMarkup([
+            ['Status', 'Info']], one_time_keyboard=True))
+
+    return WAITING_VK
+
+
+def set_vk(update: Update, context: CallbackContext) -> Optional[int]:
+    text = update.message.text
+    if not search('vk.com', text):
+        replay_text = "Хах, это не вк! Давай-ка ссылку на вк, например, https://vk.com/badfest/"
+        update.message.reply_text(
+            replay_text, reply_markup=ReplyKeyboardMarkup([
+                ['Status', 'Info']], one_time_keyboard=True))
+        return None
+
+    context.user_data['vk'] = text
+    context.user_data['status'] = WAITING_APPROVE
+    reply_text = state_texts[WAITING_APPROVE]
+    update.message.reply_text(
+        reply_text, reply_markup=ReplyKeyboardMarkup([
+            ['Status', 'Info']], one_time_keyboard=True))
+
+    return WAITING_APPROVE
+
+
+def done(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text(
+        f"Все, что знаем о тебе: {facts_to_str(context.user_data)}"
     )
 
-    return CHOOSING
+
+def state_text(update: Update, context: CallbackContext):
+    convs = my_persistence.get_conversations("my_conversation")
+    state = convs.get(tuple([update.effective_user.id, update.effective_user.id]))
+    update.message.reply_text(state_texts[state])
+    return None
 
 
 def show_data(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
-        f"This is what you already told me: {facts_to_str(context.user_data)}"
+        f"Все, что знаем о тебе: {facts_to_str(context.user_data)}"
     )
-
-
-def done(update: Update, context: CallbackContext) -> int:
-    if 'choice' in context.user_data:
-        del context.user_data['choice']
-
-    update.message.reply_text(
-        "I learned these facts about you:" f"{facts_to_str(context.user_data)}Until next time!",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    return ConversationHandler.END
 
 
 def main() -> None:
     # Create the Updater and pass it your bot's token.
-    persistence = PicklePersistence(filename='conversationbot')
     updater = Updater("1729903490:AAERypw3yDXPCK4ikqKsc8um7NOHBXj5gBc", persistence=my_persistence)
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    # Add conversation handler with the states CHOOSING, TYPING_CHOICE and TYPING_REPLY
+    show_data_handler = MessageHandler(Filters.regex('^Status$'), done)
+    dispatcher.add_handler(show_data_handler)
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CHOOSING: [
-                MessageHandler(
-                    Filters.regex('^(Age|Favourite colour|Number of siblings)$'), regular_choice
-                ),
-                MessageHandler(Filters.regex('^Something else...$'), custom_choice),
+            STARTING: [
+                MessageHandler(Filters.regex('^Join waiting list$'), join_waiting_list),
             ],
-            TYPING_CHOICE: [
+            WAITING_NAME: [
                 MessageHandler(
-                    Filters.text & ~(Filters.command | Filters.regex('^Done$')), regular_choice
+                    Filters.text, set_name
                 )
             ],
-            TYPING_REPLY: [
+            WAITING_INSTA: [
                 MessageHandler(
-                    Filters.text & ~(Filters.command | Filters.regex('^Done$')),
-                    received_information,
+                    Filters.text, set_insta,
                 )
             ],
+            WAITING_VK: [
+                MessageHandler(
+                    Filters.text, set_vk,
+                )
+            ],
+
         },
         fallbacks=[MessageHandler(Filters.regex('^Done$'), done)],
         name="my_conversation",
@@ -181,7 +224,7 @@ def main() -> None:
 
     dispatcher.add_handler(conv_handler)
 
-    show_data_handler = CommandHandler('show_data', show_data)
+    show_data_handler = MessageHandler(Filters.text, state_text)
     dispatcher.add_handler(show_data_handler)
 
     # Start the Bot
