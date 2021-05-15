@@ -62,7 +62,8 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE = (4, 6, 7, 8, 9)
+STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD = range(4, 10)
+
 WELCOME = 'just_open_bot'
 IN_WAITING_LIST = 'waiting_list'
 BY_REFERRAL = 'by_referral_link'
@@ -80,13 +81,14 @@ state_texts = dict([
 ])
 
 
-def get_default_keyboard_bottom(user_id: int):
+def is_admin(user_id: int):
     user_data = my_persistence.get_user_data().get(user_id)
+    return bool(user_data and 'admin' in user_data and user_data["admin"] and user_data['status'] == READY)
+
+
+def get_default_keyboard_bottom(user_id: int):
     key_board = ['Status', 'Info']
-    if user_data and \
-            'admin' in user_data and \
-            user_data["admin"] and \
-            user_data['status'] is READY:
+    if is_admin(user_id):
         key_board.append("Admin")
     return key_board
 
@@ -206,19 +208,47 @@ def state_text(update: Update, context: CallbackContext):
     convs = my_persistence.get_conversations("my_conversation")
     state = convs.get(tuple([update.effective_user.id, update.effective_user.id]))
     if state:
-        update.message.reply_text(
-            state_texts[state], reply_markup=ReplyKeyboardMarkup([
-                get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
+        update.message.reply_text(state_texts[state])
     else:
         update.message.reply_text("Жамкни /start")
 
     return None
 
 
+def admin_dashboard(update: Update, context: CallbackContext):
+    if not is_admin(update.effective_user.id):
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    update.message.reply_text(
+        'Милорд!', reply_markup=ReplyKeyboardMarkup([
+            ['List all', 'Back']
+        ], one_time_keyboard=True))
+
+    return ADMIN_DASHBOARD
+
+
+def admin_list(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        'List of all', reply_markup=ReplyKeyboardMarkup([
+            ['List all', 'Back']
+        ], one_time_keyboard=True))
+    return None
+
+
+def admin_back(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        'Возвращайтесь, админка ждет своего господина!', reply_markup=ReplyKeyboardMarkup([
+            get_default_keyboard_bottom(update.effective_user.id)
+        ], one_time_keyboard=True))
+    return -1
+
+
 def show_data(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
         f"Все, что знаем о тебе: {facts_to_str(context.user_data)}"
     )
+    return None
 
 
 def main() -> None:
@@ -253,14 +283,27 @@ def main() -> None:
                     Filters.text, set_vk,
                 )
             ],
-
+            WAITING_APPROVE: [],
         },
-        fallbacks=[MessageHandler(Filters.regex('^Done$'), done)],
+        fallbacks=[],
         name="my_conversation",
         persistent=True,
     )
-
     dispatcher.add_handler(conv_handler)
+
+    conv_admin_handler = ConversationHandler(
+        entry_points=[MessageHandler(Filters.regex('^Admin$'), admin_dashboard)],
+        states={
+            ADMIN_DASHBOARD: [
+                MessageHandler(Filters.regex('^List all'), admin_list),
+                MessageHandler(Filters.regex('^Back'), admin_back)
+            ]
+        },
+        fallbacks=[MessageHandler(Filters.regex('^Done$'), done)],
+        name="admin_conversation",
+        persistent=True,
+    )
+    dispatcher.add_handler(conv_admin_handler)
 
     show_data_handler = MessageHandler(Filters.text, state_text)
     dispatcher.add_handler(show_data_handler)
