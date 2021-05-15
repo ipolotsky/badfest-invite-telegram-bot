@@ -32,7 +32,7 @@ import firebase_admin
 from firebase_admin import db
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from ptb_firebase_persistence import FirebasePersistence
+from fire_persistence import FirebasePersistence
 
 cred = {
     "type": "service_account",
@@ -55,9 +55,6 @@ my_persistence = FirebasePersistence(
     credentials=cred
 )
 
-# firebaseApp = firebase_admin.initialize_app(firebase_admin.credentials.Certificate(cred), {"databaseURL": db_url})
-# convs = db.reference("conversations")
-
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
@@ -68,6 +65,10 @@ logger = logging.getLogger(__name__)
 STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE = (4, 6, 7, 8, 9)
 WELCOME = 'just_open_bot'
 IN_WAITING_LIST = 'waiting_list'
+BY_REFERRAL = 'by_referral_link'
+APPROVED = 'approved'
+REJECTED = 'rejected'
+READY = 'ready'
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021'),
@@ -77,6 +78,17 @@ state_texts = dict([
     (WAITING_APPROVE, 'Ееееее! Ну все, теперь жди - как только модераторы тебя чекнут, тебе прилетят реферальные '
                       'ссылки, чтобы пригласить друзей, а также ты сможешь оплатить билет прямо тут.')
 ])
+
+
+def get_default_keyboard_bottom(user_id: int):
+    user_data = my_persistence.get_user_data().get(user_id)
+    key_board = ['Status', 'Info']
+    if user_data and \
+            'admin' in user_data and \
+            user_data["admin"] and \
+            user_data['status'] is READY:
+        key_board.append("Admin")
+    return key_board
 
 
 def facts_to_str(user_data: Dict[str, str]) -> str:
@@ -95,19 +107,19 @@ def start(update: Update, context: CallbackContext) -> int:
 
     context.user_data['status'] = WELCOME
     update.message.reply_text(
-        reply_text, reply_markup=ReplyKeyboardMarkup([
-            ['Join waiting list'],
-            ['Status', 'Info']], one_time_keyboard=True))
+        reply_text,
+        reply_markup=ReplyKeyboardMarkup([['Join waiting list'], get_default_keyboard_bottom(update.effective_user.id)],
+                                         one_time_keyboard=True))
 
     return STARTING
 
 
 def join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]:
-    # if context.user_data['status'] is not WELCOME:
-    #     update.message.reply_text(
-    #         'Чет у тебя не тот статус, чтобы в списке ожидания быть'
-    #     )
-    #     return None
+    if context.user_data['status'] is not WELCOME:
+        update.message.reply_text(
+            'Чет у тебя не тот статус, чтобы в списке ожидания быть'
+        )
+        return None
     context.user_data['status'] = IN_WAITING_LIST
 
     markup_buttons = []
@@ -130,7 +142,7 @@ def set_name(update: Update, context: CallbackContext) -> int:
     )
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup([
-            ['Status', 'Info']], one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
 
     return WAITING_INSTA
 
@@ -154,14 +166,14 @@ def set_insta(update: Update, context: CallbackContext) -> Optional[int]:
         replay_text = "Хах, это не инста! Давай-ка ссылку на инсту, например, https://www.instagram.com/badfestbad"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup([
-                ['Status', 'Info']], one_time_keyboard=True))
+                get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
         return None
 
     context.user_data['insta'] = text
     reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, плиз"
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup([
-            ['Status', 'Info']], one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
 
     return WAITING_VK
 
@@ -172,15 +184,14 @@ def set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         replay_text = "Хах, это не вк! Давай-ка ссылку на вк, например, https://vk.com/badfest/"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup([
-                ['Status', 'Info']], one_time_keyboard=True))
+                get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
         return None
 
     context.user_data['vk'] = text
-    context.user_data['status'] = WAITING_APPROVE
     reply_text = state_texts[WAITING_APPROVE]
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup([
-            ['Status', 'Info']], one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
 
     return WAITING_APPROVE
 
@@ -195,9 +206,12 @@ def state_text(update: Update, context: CallbackContext):
     convs = my_persistence.get_conversations("my_conversation")
     state = convs.get(tuple([update.effective_user.id, update.effective_user.id]))
     if state:
-        update.message.reply_text(state_texts[state])
+        update.message.reply_text(
+            state_texts[state], reply_markup=ReplyKeyboardMarkup([
+                get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
     else:
-        update.message.reply_text("Нет у тебя статуса")
+        update.message.reply_text("Жамкни /start")
+
     return None
 
 
