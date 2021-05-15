@@ -229,10 +229,27 @@ def admin_dashboard(update: Update, context: CallbackContext):
 
 
 def admin_list(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        'List of all', reply_markup=ReplyKeyboardMarkup([
+    if not is_admin(update.effective_user.id):
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    i = 1  # что это блять, Илюша?
+    reply_html = "Все участники: \n"
+    for user_id in my_persistence.fb_user_data.get():
+        user = my_persistence.fb_user_data.child(str(user_id)).get()
+        reply_html += "<b>{}. {}</b> => {}\n<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n\n".format(str(i),
+                                                                                                         user["name"],
+                                                                                                         user["status"],
+                                                                                                         user["insta"],
+                                                                                                         user["vk"])
+        i += 1
+
+    update.message.reply_html(
+        reply_html, reply_markup=ReplyKeyboardMarkup([
             ['List all', 'Back']
-        ], one_time_keyboard=True))
+        ],
+            disable_web_page_preview=True,
+            one_time_keyboard=True))
     return None
 
 
