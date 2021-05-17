@@ -139,7 +139,7 @@ def user_to_text(user: list, index=None):
 def admin_keyboard(buttons=None):
     if buttons is None:
         buttons = []
-
+    buttons.append(['Check needed', 'Waiting list'])
     buttons.append(['List all', 'Back'])
     return buttons
 
@@ -284,7 +284,7 @@ def state_text(update: Update, context: CallbackContext):
     if state:
         update.message.reply_text(
             state_texts[state], reply_markup=ReplyKeyboardMarkup(
-                get_default_keyboard_bottom(update.effective_user.id, [["Waiting llll", 'werewr']]),
+                get_default_keyboard_bottom(update.effective_user.id),
                 resize_keyboard=True,
                 one_time_keyboard=True))
     else:
@@ -323,6 +323,36 @@ def admin_list(update: Update, context: CallbackContext):
             resize_keyboard=True,
             disable_web_page_preview=True,
             one_time_keyboard=True))
+    return None
+
+
+def admin_waiting_list(update: Update, context: CallbackContext):
+    if not is_admin(update.effective_user.id):
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    users = list(filter(lambda user: helper.safe_list_get(user, 'status') == IN_WAITING_LIST,
+                        my_persistence.fb_user_data.order_by_child("created").get().values()))
+    i = 1  # что это блять, Илюша?
+    for user in reversed(users):
+        reply_html = user_to_text(user, i)
+        markup_buttons = [
+            [
+                InlineKeyboardButton(text='Approve', callback_data=user["id"]),
+                InlineKeyboardButton(text='Reject', callback_data=user["id"])
+            ]
+        ]
+        update.message.reply_html(
+            text=reply_html,
+            reply_markup=InlineKeyboardMarkup(markup_buttons))
+        i += 1
+
+    update.message.reply_html(
+        "Всего ждут: " + str(len(users)), reply_markup=ReplyKeyboardMarkup(
+            admin_keyboard(),
+            resize_keyboard=True,
+            disable_web_page_preview=True,
+            one_time_keyboard=False))
     return None
 
 
@@ -385,6 +415,8 @@ def main() -> None:
         states={
             ADMIN_DASHBOARD: [
                 MessageHandler(Filters.regex('^List all'), admin_list),
+                # MessageHandler(Filters.regex('^Check needed$'), admin_need_check),
+                MessageHandler(Filters.regex('^Waiting list$'), admin_waiting_list),
                 MessageHandler(Filters.regex('^Back'), admin_back)
             ]
         },
