@@ -421,8 +421,9 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
                      "\nПриглашай только тех, за кого можешь поручиться =)" \
                      "\n\n И не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
                      "\n\n Используй кнопки бота для перехода к билетам и ссылкам для друзей"
-        context.bot.send_message(chat_id=user['id'], reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(user['id'], None, False)), disable_web_page_preview=True, resize_keyboard=True, text=user_reply, parse_mode=ParseMode.HTML)
+        context.bot.send_message(chat_id=user['id'],
+                                 reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(user['id'], None, False), resize_keyboard=True),
+                                 disable_web_page_preview=True, text=user_reply, parse_mode=ParseMode.HTML)
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=reply_text, parse_mode=ParseMode.HTML)
