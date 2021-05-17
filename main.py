@@ -12,6 +12,7 @@ Send /start to initiate the conversation.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
+from emoji import emojize
 import traceback
 import html
 import json
@@ -20,7 +21,7 @@ from re import search
 import logging
 from typing import Dict, Optional
 
-from telegram import ReplyKeyboardMarkup, Update, ParseMode, ReplyKeyboardRemove
+from telegram import Bot, ReplyKeyboardMarkup, Update, ParseMode, ReplyKeyboardRemove
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -69,12 +70,12 @@ logger = logging.getLogger(__name__)
 
 STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD = range(4, 10)
 
-WELCOME = 'just_open_bot'
-IN_WAITING_LIST = 'waiting_list'
-BY_REFERRAL = 'by_referral_link'
-APPROVED = 'approved'
-REJECTED = 'rejected'
-READY = 'ready'
+STATUS_WELCOME = 'just_open_bot'
+STATUS_IN_WAITING_LIST = 'waiting_list'
+STATUS_BY_REFERRAL = 'by_referral_link'
+STATUS_APPROVED = 'approved'
+STATUS_REJECTED = 'rejected'
+STATUS_READY = 'ready'
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021'),
@@ -116,6 +117,10 @@ def get_admins():
     return list(filter(lambda user: 'admin' in user and user['admin'], my_persistence.fb_user_data.get().values()))
 
 
+def get_user(user_id: str):
+    return my_persistence.fb_user_data.child(user_id).get()
+
+
 def user_to_text(user: list, index=None):
     return "<b>{}{}</b> => {}\n" \
            "Data: {} ({}) / <a href='tg://user?id={}'>{}</a>\n" \
@@ -146,12 +151,16 @@ def admin_keyboard(buttons=None):
 
 def is_admin(user_id: int):
     user_data = my_persistence.get_user_data().get(user_id)
-    return bool(user_data and 'admin' in user_data and user_data["admin"] and user_data['status'] == READY)
+    return bool(user_data and 'admin' in user_data and user_data["admin"] and user_data['status'] == STATUS_READY)
 
 
 def get_default_keyboard_bottom(user_id: int, buttons=None, is_admin_in_convs=True):
     if buttons is None:
         buttons = []
+
+    user = get_user(str(user_id))
+    if helper.safe_list_get(user, 'status') == STATUS_APPROVED:
+        buttons.append(["Ссылки друзьям", "Билеты"])
 
     key_board = ['Status', 'Info']
     if is_admin(user_id):
@@ -179,7 +188,7 @@ def start(update: Update, context: CallbackContext) -> int:
     for key, value in update.effective_user.to_dict().items():
         context.user_data[key] = value
     context.user_data["created"] = datetime.now().timestamp()
-    context.user_data['status'] = WELCOME
+    context.user_data['status'] = STATUS_WELCOME
     update.message.reply_text(
         reply_text,
         reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(update.effective_user.id, [['Join waiting list']]),
@@ -189,13 +198,13 @@ def start(update: Update, context: CallbackContext) -> int:
 
 
 def join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]:
-    if context.user_data['status'] is not WELCOME:
+    if context.user_data['status'] is not STATUS_WELCOME:
         update.message.reply_text(
             'Чет у тебя не тот статус, чтобы в списке ожидания быть'
         )
         return None
 
-    context.user_data['status'] = IN_WAITING_LIST
+    context.user_data['status'] = STATUS_IN_WAITING_LIST
 
     markup_buttons = []
     if "first_name" in context.user_data or "last_name" in context.user_data:
@@ -331,15 +340,15 @@ def admin_waiting_list(update: Update, context: CallbackContext):
         update.message.reply_text("Ну-ка! Куда полез!?")
         return None
 
-    users = list(filter(lambda user: helper.safe_list_get(user, 'status') == IN_WAITING_LIST,
+    users = list(filter(lambda user: helper.safe_list_get(user, 'status') == STATUS_IN_WAITING_LIST,
                         my_persistence.fb_user_data.order_by_child("created").get().values()))
     i = 1  # что это блять, Илюша?
     for user in reversed(users):
         reply_html = user_to_text(user, i)
         markup_buttons = [
             [
-                InlineKeyboardButton(text='Approve', callback_data=user["id"]),
-                InlineKeyboardButton(text='Reject', callback_data=user["id"])
+                InlineKeyboardButton(text='Approve', callback_data="Approve:" + str(user["id"])),
+                InlineKeyboardButton(text='Reject', callback_data="Reject:" + str(user["id"]))
             ]
         ]
         update.message.reply_html(
@@ -356,10 +365,43 @@ def admin_waiting_list(update: Update, context: CallbackContext):
     return None
 
 
+def admin_approve(update: Update, context: CallbackContext) -> None:
+    if not is_admin(update.effective_user.id):
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text="Ну-ка! Куда полез!?", parse_mode=ParseMode.HTML)
+        return None
+
+    string_user_id = update.callback_query.data.split(':')[1]
+    user = get_user(string_user_id)
+
+    if not helper.safe_list_get(user, 'status') in [STATUS_IN_WAITING_LIST, STATUS_BY_REFERRAL]:
+        reply_text = emojize(":man_detective:",
+                             use_aliases=True) + " ВОЗМОЖНО УЖЕ ДРУГОЙ АДМИН ЗААПРУВИЛ " + user_to_text(user)
+    else:
+        user["status"] = STATUS_APPROVED
+        my_persistence.fb_user_data.child(str(user["id"])).update(user)
+
+        reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user_to_text(user)
+
+        # notify user about approval
+        user_reply = "Хей! Тебя заапрувили! Теперь ты можешь покупать билет, а также у тебя есть две ссылки, по которым ты можешь пригласить друзей. " \
+                     "\nПриглашай только тех, за кого можешь поручиться =)" \
+                     "\n\n И не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
+                     "\n\n Используй кнопки бота для перехода к билетам и ссылкам для друзей"
+        context.bot.send_message(chat_id=user['id'], reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user['id'], None, False)), resize_keyboard=True, text=user_reply, parse_mode=ParseMode.HTML)
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text=reply_text, parse_mode=ParseMode.HTML)
+
+    return None
+
+
 def admin_back(update: Update, context: CallbackContext):
     update.message.reply_text(
         'Возвращайтесь, админка ждет своего господина!', reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(update.effective_user.id, None, False), resize_keyboard=True, one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id, None, False), resize_keyboard=True,
+            one_time_keyboard=True))
     return -1
 
 
@@ -417,7 +459,8 @@ def main() -> None:
                 MessageHandler(Filters.regex('^List all'), admin_list),
                 # MessageHandler(Filters.regex('^Check needed$'), admin_need_check),
                 MessageHandler(Filters.regex('^Waiting list$'), admin_waiting_list),
-                MessageHandler(Filters.regex('^Back'), admin_back)
+                MessageHandler(Filters.regex('^Back'), admin_back),
+                CallbackQueryHandler(admin_approve, pattern=r'^Approve.*'),
             ]
         },
         fallbacks=[MessageHandler(Filters.regex('^Done$'), done)],
