@@ -83,21 +83,24 @@ state_texts = dict([
 ])
 
 
-def user_to_text(user: list, index = None):
+def user_to_text(user: list, index=None):
     return "<b>{}{}</b> => {}\n" \
-          "Data: {} ({}) / <a href='tg://user?id={}'>{}</a>\n" \
-          "<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n" \
+           "Data: {} ({}) / <a href='tg://user?id={}'>{}</a>\n" \
+           "<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n" \
            "{}\n\n" \
-          "\n".format(str(index) + ". " if index else "",
-                      helper.safe_list_get(user, "name", "Не указал имя"),
-                      helper.safe_list_get(user, "status"),
-                      helper.safe_list_get(user, "first_name", "No name") + " " + helper.safe_list_get(user,"last_name"),
-                      helper.safe_list_get(user, "id"),
-                      helper.safe_list_get(user, "id"),
-                      "@" + helper.safe_list_get(user, "username") if helper.safe_list_get(user, "username") else "direct",
-                      helper.safe_list_get(user, "insta", "инсты нет"),
-                      helper.safe_list_get(user, "vk", "vk нет"),
-                      datetime.fromtimestamp(helper.safe_list_get(user, "created", None)).strftime('%Y-%m-%d %H:%M:%S'))
+           "\n".format(str(index) + ". " if index else "",
+                       helper.safe_list_get(user, "name", "Не указал имя"),
+                       helper.safe_list_get(user, "status"),
+                       helper.safe_list_get(user, "first_name", "No name") + " " + helper.safe_list_get(user,
+                                                                                                        "last_name"),
+                       helper.safe_list_get(user, "id"),
+                       helper.safe_list_get(user, "id"),
+                       "@" + helper.safe_list_get(user, "username") if helper.safe_list_get(user,
+                                                                                            "username") else "direct",
+                       helper.safe_list_get(user, "insta", "инсты нет"),
+                       helper.safe_list_get(user, "vk", "vk нет"),
+                       datetime.fromtimestamp(helper.safe_list_get(user, "created", None)).strftime(
+                           '%Y-%m-%d %H:%M:%S'))
 
 
 def admin_keyboard():
@@ -109,11 +112,11 @@ def is_admin(user_id: int):
     return bool(user_data and 'admin' in user_data and user_data["admin"] and user_data['status'] == READY)
 
 
-def get_default_keyboard_bottom(user_id: int):
+def get_default_keyboard_bottom(user_id: int, is_admin_in_convs=True):
     key_board = ['Status', 'Info']
     if is_admin(user_id):
         in_admin_convs = my_persistence.get_conversations("admin_conversation").get(tuple([user_id, user_id]))
-        if in_admin_convs:
+        if is_admin_in_convs and in_admin_convs:
             return admin_keyboard()
 
         key_board.append("Admin")
@@ -134,12 +137,12 @@ def start(update: Update, context: CallbackContext) -> int:
     reply_text = state_texts[STARTING]
     for key, value in update.effective_user.to_dict().items():
         context.user_data[key] = value
-    context.user_data["created"] = datetime.datetime.now().timestamp()
+    context.user_data["created"] = datetime.now().timestamp()
     context.user_data['status'] = WELCOME
     update.message.reply_text(
         reply_text,
         reply_markup=ReplyKeyboardMarkup([['Join waiting list'], get_default_keyboard_bottom(update.effective_user.id)],
-                                         one_time_keyboard=True))
+                                         resize_keyboard=True, one_time_keyboard=True))
 
     return STARTING
 
@@ -150,6 +153,7 @@ def join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]
             'Чет у тебя не тот статус, чтобы в списке ожидания быть'
         )
         return None
+
     context.user_data['status'] = IN_WAITING_LIST
 
     markup_buttons = []
@@ -173,7 +177,7 @@ def set_name(update: Update, context: CallbackContext) -> int:
     )
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_INSTA
 
@@ -197,14 +201,14 @@ def set_insta(update: Update, context: CallbackContext) -> Optional[int]:
         replay_text = "Хах, это не инста! Давай-ка ссылку на инсту, например, https://www.instagram.com/badfestbad"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup([
-                get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
+                get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
         return None
 
     context.user_data['insta'] = text
     reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, плиз"
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_VK
 
@@ -215,14 +219,14 @@ def set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         replay_text = "Хах, это не вк! Давай-ка ссылку на вк, например, https://vk.com/badfest/"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup([
-                get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
+                get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
         return None
 
     context.user_data['vk'] = text
     reply_text = state_texts[WAITING_APPROVE]
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id)], one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_APPROVE
 
@@ -254,9 +258,7 @@ def admin_dashboard(update: Update, context: CallbackContext):
         return None
 
     update.message.reply_text(
-        'Милорд!', reply_markup=ReplyKeyboardMarkup([
-            ['List all', 'Back']
-        ], one_time_keyboard=True))
+        'Милорд!', reply_markup=ReplyKeyboardMarkup([admin_keyboard()], resize_keyboard=True, one_time_keyboard=True))
 
     return ADMIN_DASHBOARD
 
@@ -275,9 +277,9 @@ def admin_list(update: Update, context: CallbackContext):
         i += 1
 
     update.message.reply_html(
-        reply_html, reply_markup=ReplyKeyboardMarkup([
-            ['List all', 'Back']
-        ],
+        reply_html, reply_markup=ReplyKeyboardMarkup(
+            [admin_keyboard()],
+            resize_keyboard=True,
             disable_web_page_preview=True,
             one_time_keyboard=True))
     return None
@@ -286,8 +288,8 @@ def admin_list(update: Update, context: CallbackContext):
 def admin_back(update: Update, context: CallbackContext):
     update.message.reply_text(
         'Возвращайтесь, админка ждет своего господина!', reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id)
-        ], one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id, False)
+        ], resize_keyboard=True, one_time_keyboard=True))
     return -1
 
 
