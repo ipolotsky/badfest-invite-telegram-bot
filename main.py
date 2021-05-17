@@ -12,7 +12,7 @@ Send /start to initiate the conversation.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
-
+from datetime import datetime
 from re import search
 import logging
 from typing import Dict, Optional
@@ -33,6 +33,8 @@ from firebase_admin import db
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from fire_persistence import FirebasePersistence
+
+from utils import helper
 
 cred = {
     "type": "service_account",
@@ -81,6 +83,27 @@ state_texts = dict([
 ])
 
 
+def user_to_text(user: list, index = None):
+    return "<b>{}{}</b> => {}\n" \
+          "Data: {} ({}) / <a href='tg://user?id={}'>{}</a>\n" \
+          "<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n" \
+           "{}\n\n" \
+          "\n".format(str(index) + ". " if index else "",
+                      helper.safe_list_get(user, "name", "Не указал имя"),
+                      helper.safe_list_get(user, "status"),
+                      helper.safe_list_get(user, "first_name", "No name") + " " + helper.safe_list_get(user,"last_name"),
+                      helper.safe_list_get(user, "id"),
+                      helper.safe_list_get(user, "id"),
+                      "@" + helper.safe_list_get(user, "username") if helper.safe_list_get(user, "username") else "direct",
+                      helper.safe_list_get(user, "insta", "инсты нет"),
+                      helper.safe_list_get(user, "vk", "vk нет"),
+                      datetime.fromtimestamp(helper.safe_list_get(user, "created", None)).strftime('%Y-%m-%d %H:%M:%S'))
+
+
+def admin_keyboard():
+    return ['List all', 'Back']
+
+
 def is_admin(user_id: int):
     user_data = my_persistence.get_user_data().get(user_id)
     return bool(user_data and 'admin' in user_data and user_data["admin"] and user_data['status'] == READY)
@@ -89,7 +112,12 @@ def is_admin(user_id: int):
 def get_default_keyboard_bottom(user_id: int):
     key_board = ['Status', 'Info']
     if is_admin(user_id):
+        in_admin_convs = my_persistence.get_conversations("admin_conversation").get(tuple([user_id, user_id]))
+        if in_admin_convs:
+            return admin_keyboard()
+
         key_board.append("Admin")
+
     return key_board
 
 
@@ -106,7 +134,7 @@ def start(update: Update, context: CallbackContext) -> int:
     reply_text = state_texts[STARTING]
     for key, value in update.effective_user.to_dict().items():
         context.user_data[key] = value
-
+    context.user_data["created"] = datetime.datetime.now().timestamp()
     context.user_data['status'] = WELCOME
     update.message.reply_text(
         reply_text,
@@ -125,8 +153,9 @@ def join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]
     context.user_data['status'] = IN_WAITING_LIST
 
     markup_buttons = []
-    if "first_name" in context.user_data and "last_name" in context.user_data:
-        full_name = context.user_data['first_name'] + ' ' + context.user_data['last_name']
+    if "first_name" in context.user_data or "last_name" in context.user_data:
+        full_name = helper.safe_list_get(context.user_data, "first_name", "") + ' ' + helper.safe_list_get(
+            context.user_data, "last_name", "")
         markup_buttons = [[InlineKeyboardButton(text=full_name, callback_data=full_name)]]
 
     update.message.reply_text(
@@ -208,7 +237,11 @@ def state_text(update: Update, context: CallbackContext):
     convs = my_persistence.get_conversations("my_conversation")
     state = convs.get(tuple([update.effective_user.id, update.effective_user.id]))
     if state:
-        update.message.reply_text(state_texts[state])
+        update.message.reply_text(
+            state_texts[state], reply_markup=ReplyKeyboardMarkup([
+                get_default_keyboard_bottom(update.effective_user.id)],
+                resize_keyboard=True,
+                one_time_keyboard=True))
     else:
         update.message.reply_text("Жамкни /start")
 
@@ -234,14 +267,11 @@ def admin_list(update: Update, context: CallbackContext):
         return None
 
     i = 1  # что это блять, Илюша?
-    reply_html = "Все участники: \n"
-    for user_id in my_persistence.fb_user_data.get():
-        user = my_persistence.fb_user_data.child(str(user_id)).get()
-        reply_html += "<b>{}. {}</b> => {}\n<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n\n".format(str(i),
-                                                                                                         user["name"],
-                                                                                                         user["status"],
-                                                                                                         user["insta"],
-                                                                                                         user["vk"])
+    reply_html = "<b>Все участники:</b> \n"
+    users = my_persistence.fb_user_data.order_by_child("created").get()
+    for user_id, user in reversed(users.items()):
+        # user = my_persistence.fb_user_data.child(str(user_id)).get()
+        reply_html += user_to_text(user, i)
         i += 1
 
     update.message.reply_html(
