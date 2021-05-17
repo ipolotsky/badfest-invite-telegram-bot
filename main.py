@@ -20,7 +20,7 @@ from re import search
 import logging
 from typing import Dict, Optional
 
-from telegram import ReplyKeyboardMarkup, Update,  ParseMode, ReplyKeyboardRemove
+from telegram import ReplyKeyboardMarkup, Update, ParseMode, ReplyKeyboardRemove
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -136,8 +136,12 @@ def user_to_text(user: list, index=None):
                            '%Y-%m-%d %H:%M:%S'))
 
 
-def admin_keyboard():
-    return ['Waiting list', 'Waiting list', 'Waiting list', 'Waiting list', 'List all', 'Back']
+def admin_keyboard(buttons=None):
+    if buttons is None:
+        buttons = []
+
+    buttons.append(['List all', 'Back'])
+    return buttons
 
 
 def is_admin(user_id: int):
@@ -145,16 +149,20 @@ def is_admin(user_id: int):
     return bool(user_data and 'admin' in user_data and user_data["admin"] and user_data['status'] == READY)
 
 
-def get_default_keyboard_bottom(user_id: int, is_admin_in_convs=True):
+def get_default_keyboard_bottom(user_id: int, buttons=None, is_admin_in_convs=True):
+    if buttons is None:
+        buttons = []
+
     key_board = ['Status', 'Info']
     if is_admin(user_id):
         in_admin_convs = my_persistence.get_conversations("admin_conversation").get(tuple([user_id, user_id]))
         if is_admin_in_convs and in_admin_convs:
-            return admin_keyboard()
+            return admin_keyboard(buttons)
 
         key_board.append("Admin")
 
-    return key_board
+    buttons.append(key_board)
+    return buttons
 
 
 def facts_to_str(user_data: Dict[str, str]) -> str:
@@ -174,7 +182,7 @@ def start(update: Update, context: CallbackContext) -> int:
     context.user_data['status'] = WELCOME
     update.message.reply_text(
         reply_text,
-        reply_markup=ReplyKeyboardMarkup([['Join waiting list'], get_default_keyboard_bottom(update.effective_user.id)],
+        reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(update.effective_user.id, [['Join waiting list']]),
                                          resize_keyboard=True, one_time_keyboard=True))
 
     return STARTING
@@ -209,8 +217,8 @@ def set_name(update: Update, context: CallbackContext) -> int:
         f'Приветы, {text}! Скинь, плиз, ссылку на инсту'
     )
     update.message.reply_text(
-        reply_text, reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
+        reply_text, reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_INSTA
 
@@ -233,15 +241,15 @@ def set_insta(update: Update, context: CallbackContext) -> Optional[int]:
     if not search('instagram.com', text):
         replay_text = "Хах, это не инста! Давай-ка ссылку на инсту, например, https://www.instagram.com/badfestbad"
         update.message.reply_text(
-            replay_text, reply_markup=ReplyKeyboardMarkup([
-                get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
+            replay_text, reply_markup=ReplyKeyboardMarkup(
+                get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
         return None
 
     context.user_data['insta'] = text
     reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, плиз"
     update.message.reply_text(
-        reply_text, reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
+        reply_text, reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_VK
 
@@ -251,15 +259,15 @@ def set_vk(update: Update, context: CallbackContext) -> Optional[int]:
     if not search('vk.com', text):
         replay_text = "Хах, это не вк! Давай-ка ссылку на вк, например, https://vk.com/badfest/"
         update.message.reply_text(
-            replay_text, reply_markup=ReplyKeyboardMarkup([
-                get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
+            replay_text, reply_markup=ReplyKeyboardMarkup(
+                get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
         return None
 
     context.user_data['vk'] = text
     reply_text = state_texts[WAITING_APPROVE]
     update.message.reply_text(
-        reply_text, reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id)], resize_keyboard=True, one_time_keyboard=True))
+        reply_text, reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_APPROVE
 
@@ -275,8 +283,8 @@ def state_text(update: Update, context: CallbackContext):
     state = convs.get(tuple([update.effective_user.id, update.effective_user.id]))
     if state:
         update.message.reply_text(
-            state_texts[state], reply_markup=ReplyKeyboardMarkup([
-                get_default_keyboard_bottom(update.effective_user.id)],
+            state_texts[state], reply_markup=ReplyKeyboardMarkup(
+                get_default_keyboard_bottom(update.effective_user.id, [["Waiting llll", 'werewr']]),
                 resize_keyboard=True,
                 one_time_keyboard=True))
     else:
@@ -291,7 +299,7 @@ def admin_dashboard(update: Update, context: CallbackContext):
         return None
 
     update.message.reply_text(
-        'Милорд!', reply_markup=ReplyKeyboardMarkup([admin_keyboard()], resize_keyboard=True, one_time_keyboard=True))
+        'Милорд!', reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True, one_time_keyboard=True))
 
     return ADMIN_DASHBOARD
 
@@ -311,7 +319,7 @@ def admin_list(update: Update, context: CallbackContext):
 
     update.message.reply_html(
         reply_html, reply_markup=ReplyKeyboardMarkup(
-            [admin_keyboard()],
+            admin_keyboard(),
             resize_keyboard=True,
             disable_web_page_preview=True,
             one_time_keyboard=True))
@@ -320,9 +328,8 @@ def admin_list(update: Update, context: CallbackContext):
 
 def admin_back(update: Update, context: CallbackContext):
     update.message.reply_text(
-        'Возвращайтесь, админка ждет своего господина!', reply_markup=ReplyKeyboardMarkup([
-            get_default_keyboard_bottom(update.effective_user.id, False)
-        ], resize_keyboard=True, one_time_keyboard=True))
+        'Возвращайтесь, админка ждет своего господина!', reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(update.effective_user.id, None, False), resize_keyboard=True, one_time_keyboard=True))
     return -1
 
 
