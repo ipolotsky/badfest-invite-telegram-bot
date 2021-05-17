@@ -57,6 +57,7 @@ db_url = 'https://badfest-invites-default-rtdb.europe-west1.firebasedatabase.app
 my_persistence = FirebasePersistence(
     store_bot_data=False,
     store_chat_data=False,
+    store_user_data=False,
     database_url=db_url,
     credentials=cred
 )
@@ -105,7 +106,7 @@ def error_handler(update: object, context: CallbackContext) -> None:
         f'<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}'
         '</pre>\n\n'
         f'<pre>context.chat_data = {html.escape(str(context.chat_data))}</pre>\n\n'
-        f'<pre>context.user_data = {html.escape(str(context.user_data))}</pre>\n\n'
+        f'<pre>context.user_data = {html.escape(str(get_user(update.effective_user.id)))}</pre>\n\n'
         f'<pre>{html.escape(tb_string)}</pre>'
     )
 
@@ -114,11 +115,19 @@ def error_handler(update: object, context: CallbackContext) -> None:
 
 
 def get_admins():
-    return list(filter(lambda user: 'admin' in user and user['admin'], my_persistence.fb_user_data.get().values()))
+    return list(filter(lambda user: 'admin' in user and user['admin'], my_persistence.users.get().values()))
 
 
-def get_user(user_id: str):
-    return my_persistence.fb_user_data.child(user_id).get()
+def get_user(user_id):
+    return my_persistence.users.child(str(user_id)).get()
+
+
+def create_user(user_id):
+    my_persistence.users.child(str(user_id)).update({'id': user_id})
+
+
+def update_user(user):
+    my_persistence.users.child(str(user['id'])).update(user)
 
 
 def user_to_text(user: list, index=None):
@@ -150,7 +159,7 @@ def admin_keyboard(buttons=None):
 
 
 def is_admin(user_id: int):
-    user_data = my_persistence.get_user_data().get(user_id)
+    user_data = get_user(user_id)
     return bool(user_data and 'admin' in user_data and user_data["admin"] and user_data['status'] == STATUS_READY)
 
 
@@ -185,56 +194,69 @@ def facts_to_str(user_data: Dict[str, str]) -> str:
 
 def start(update: Update, context: CallbackContext) -> int:
     reply_text = state_texts[STARTING]
-    for key, value in update.effective_user.to_dict().items():
-        context.user_data[key] = value
-    context.user_data["created"] = datetime.now().timestamp()
-    context.user_data['status'] = STATUS_WELCOME
+    # for key, value in update.effective_user.to_dict().items():
+    #     context.user_data[key] = value
+
+    user = update.effective_user.to_dict()
+    user['created'] = datetime.now().timestamp()
+    user['status'] = STATUS_WELCOME
+
+    create_user(update.effective_user.id)
+    update_user(user)
     update.message.reply_text(
         reply_text,
         reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(update.effective_user.id, [['Join waiting list']]),
-                                         resize_keyboard=True, one_time_keyboard=True))
+                                         disable_web_page_preview=True, resize_keyboard=True, one_time_keyboard=True))
 
     return STARTING
 
 
 def join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]:
-    if context.user_data['status'] is not STATUS_WELCOME:
+    user = get_user(update.effective_user.id)
+    if helper.safe_list_get(user, 'status') != STATUS_WELCOME:
         update.message.reply_text(
             'Чет у тебя не тот статус, чтобы в списке ожидания быть'
         )
         return None
 
-    context.user_data['status'] = STATUS_IN_WAITING_LIST
+    user['status'] = STATUS_IN_WAITING_LIST
+    update_user(user)
 
     markup_buttons = []
-    if "first_name" in context.user_data or "last_name" in context.user_data:
-        full_name = helper.safe_list_get(context.user_data, "first_name", "") + ' ' + helper.safe_list_get(
-            context.user_data, "last_name", "")
+    if helper.safe_list_get(user, "first_name") or helper.safe_list_get(user, "last_name"):
+        full_name = helper.safe_list_get(user, "first_name", "") + ' ' + helper.safe_list_get(user, "last_name", "")
         markup_buttons = [[InlineKeyboardButton(text=full_name, callback_data=full_name)]]
 
     update.message.reply_text(
         text=state_texts[WAITING_NAME],
-        reply_markup=InlineKeyboardMarkup(markup_buttons))
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(markup_buttons),)
 
     return WAITING_NAME
 
 
 def set_name(update: Update, context: CallbackContext) -> int:
+    user = get_user(update.effective_user.id)
     text = update.message.text
-    context.user_data['name'] = text
+    user['name'] = text
+    update_user(user)
+
     reply_text = (
         f'Приветы, {text}! Скинь, плиз, ссылку на инсту'
     )
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id), disable_web_page_preview=True, resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_INSTA
 
 
 def set_name_callback(update: Update, context: CallbackContext) -> int:
+    user = get_user(update.effective_user.id)
     text = update.callback_query.data
-    context.user_data['name'] = text
+    user['name'] = text
+    update_user(user)
+
     reply_text = (
         f'Приветы, {text}! Скинь, плиз, ссылку на инсту'
     )
@@ -246,37 +268,47 @@ def set_name_callback(update: Update, context: CallbackContext) -> int:
 
 
 def set_insta(update: Update, context: CallbackContext) -> Optional[int]:
+    user = get_user(update.effective_user.id)
     text = update.message.text
     if not search('instagram.com', text):
         replay_text = "Хах, это не инста! Давай-ка ссылку на инсту, например, https://www.instagram.com/badfestbad"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
-                get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
+                get_default_keyboard_bottom(update.effective_user.id), disable_web_page_preview=True, resize_keyboard=True, one_time_keyboard=True))
         return None
 
-    context.user_data['insta'] = text
+    user['insta'] = text
+    update_user(user)
+
     reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, плиз"
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id), disable_web_page_preview=True, resize_keyboard=True, one_time_keyboard=True))
 
     return WAITING_VK
 
 
 def set_vk(update: Update, context: CallbackContext) -> Optional[int]:
+    user = get_user(update.effective_user.id)
     text = update.message.text
     if not search('vk.com', text):
         replay_text = "Хах, это не вк! Давай-ка ссылку на вк, например, https://vk.com/badfest/"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
-                get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
+                get_default_keyboard_bottom(update.effective_user.id), disable_web_page_preview=True, resize_keyboard=True, one_time_keyboard=True))
         return None
 
-    context.user_data['vk'] = text
+    user['vk'] = text
+    update_user(user)
+
     reply_text = state_texts[WAITING_APPROVE]
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True, one_time_keyboard=True))
+            get_default_keyboard_bottom(update.effective_user.id), disable_web_page_preview=True, resize_keyboard=True, one_time_keyboard=True))
+
+    for admin in get_admins():
+        message = "Надо проверить нового участника: " + user_to_text(user) + "\n"
+        context.bot.send_message(chat_id=admin['id'], text=message, parse_mode=ParseMode.HTML)
 
     return WAITING_APPROVE
 
@@ -294,6 +326,7 @@ def state_text(update: Update, context: CallbackContext):
         update.message.reply_text(
             state_texts[state], reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(update.effective_user.id),
+                disable_web_page_preview=True,
                 resize_keyboard=True,
                 one_time_keyboard=True))
     else:
@@ -308,7 +341,7 @@ def admin_dashboard(update: Update, context: CallbackContext):
         return None
 
     update.message.reply_text(
-        'Милорд!', reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True, one_time_keyboard=True))
+        'Милорд!', reply_markup=ReplyKeyboardMarkup(admin_keyboard(), disable_web_page_preview=True, resize_keyboard=True, one_time_keyboard=True))
 
     return ADMIN_DASHBOARD
 
@@ -319,10 +352,9 @@ def admin_list(update: Update, context: CallbackContext):
         return None
 
     i = 1  # что это блять, Илюша?
-    reply_html = "<b>Все участники:</b> \n"
-    users = my_persistence.fb_user_data.order_by_child("created").get()
+    users = my_persistence.users.order_by_child("created").get()
+    reply_html = "<b>Все участники:</b> (" + str(len(users)) + ")\n"
     for user_id, user in reversed(users.items()):
-        # user = my_persistence.fb_user_data.child(str(user_id)).get()
         reply_html += user_to_text(user, i)
         i += 1
 
@@ -341,7 +373,7 @@ def admin_waiting_list(update: Update, context: CallbackContext):
         return None
 
     users = list(filter(lambda user: helper.safe_list_get(user, 'status') == STATUS_IN_WAITING_LIST,
-                        my_persistence.fb_user_data.order_by_child("created").get().values()))
+                        my_persistence.users.order_by_child("created").get().values()))
     i = 1  # что это блять, Илюша?
     for user in reversed(users):
         reply_html = user_to_text(user, i)
@@ -353,6 +385,7 @@ def admin_waiting_list(update: Update, context: CallbackContext):
         ]
         update.message.reply_html(
             text=reply_html,
+            disable_web_page_preview=True,
             reply_markup=InlineKeyboardMarkup(markup_buttons))
         i += 1
 
@@ -376,10 +409,10 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
 
     if not helper.safe_list_get(user, 'status') in [STATUS_IN_WAITING_LIST, STATUS_BY_REFERRAL]:
         reply_text = emojize(":man_detective:",
-                             use_aliases=True) + " ВОЗМОЖНО УЖЕ ДРУГОЙ АДМИН ЗААПРУВИЛ " + user_to_text(user)
+                             use_aliases=True) + " Возможно другой админ уже заапрувил " + user_to_text(user)
     else:
         user["status"] = STATUS_APPROVED
-        my_persistence.fb_user_data.child(str(user["id"])).update(user)
+        update_user(user)
 
         reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user_to_text(user)
 
@@ -389,7 +422,7 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
                      "\n\n И не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
                      "\n\n Используй кнопки бота для перехода к билетам и ссылкам для друзей"
         context.bot.send_message(chat_id=user['id'], reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(user['id'], None, False)), resize_keyboard=True, text=user_reply, parse_mode=ParseMode.HTML)
+            get_default_keyboard_bottom(user['id'], None, False)), disable_web_page_preview=True, resize_keyboard=True, text=user_reply, parse_mode=ParseMode.HTML)
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=reply_text, parse_mode=ParseMode.HTML)
@@ -398,16 +431,20 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
 
 
 def admin_back(update: Update, context: CallbackContext):
+    if not is_admin(update.effective_user.id):
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
     update.message.reply_text(
         'Возвращайтесь, админка ждет своего господина!', reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(update.effective_user.id, None, False), resize_keyboard=True,
+            get_default_keyboard_bottom(update.effective_user.id, None, False), disable_web_page_preview=True, resize_keyboard=True,
             one_time_keyboard=True))
     return -1
 
 
 def show_data(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
-        f"Все, что знаем о тебе: {facts_to_str(context.user_data)}"
+        f"Все, что знаем о тебе: {facts_to_str(get_user(update.effective_user.id))}"
     )
     return None
 

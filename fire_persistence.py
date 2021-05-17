@@ -21,6 +21,7 @@ class FirebasePersistence(BasePersistence):
         cred = firebase_admin.credentials.Certificate(credentials)
         self.app = firebase_admin.initialize_app(cred, {"databaseURL": database_url})
         self.fb_user_data = db.reference("user_data")
+        self.users = db.reference("users")
         self.fb_chat_data = db.reference("chat_data")
         self.fb_bot_data = db.reference("bot_data")
         self.fb_conversations = db.reference("conversations")
