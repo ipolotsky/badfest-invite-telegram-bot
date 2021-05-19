@@ -208,7 +208,7 @@ def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
         reply_text,
         reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(update.effective_user.id, [['Join waiting list']]),
-                                         resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True,)
+                                         resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
 
     return STARTING
 
@@ -249,7 +249,7 @@ def set_name(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True,)
+            one_time_keyboard=True), disable_web_page_preview=True, )
 
     return WAITING_INSTA
 
@@ -278,7 +278,7 @@ def set_insta(update: Update, context: CallbackContext) -> Optional[int]:
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(update.effective_user.id),
-                resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True,)
+                resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
         return None
 
     user['insta'] = text
@@ -288,7 +288,7 @@ def set_insta(update: Update, context: CallbackContext) -> Optional[int]:
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(update.effective_user.id), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True,)
+            one_time_keyboard=True), disable_web_page_preview=True, )
 
     return WAITING_VK
 
@@ -301,7 +301,7 @@ def set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(update.effective_user.id),
-                resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True,)
+                resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
         return None
 
     user['vk'] = text
@@ -334,14 +334,20 @@ def state_text(update: Update, context: CallbackContext):
             state_texts[state], reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(update.effective_user.id),
                 resize_keyboard=True,
-                one_time_keyboard=True), disable_web_page_preview=True,)
+                one_time_keyboard=True), disable_web_page_preview=True, )
     else:
         update.message.reply_text("Жамкни /start")
 
     return None
 
 
-def after_approval(update: Update, context: CallbackContext):
+def after_approval_callback(update: Update, context: CallbackContext):
+    update.callback_query.answer()
+    update.callback_query.delete_message()
+    after_approval_message(update, context)
+
+
+def after_approval_message(update: Update, context: CallbackContext):
     user = get_user(update.effective_user.id)
     if user['status'] == STATUS_REJECTED:
         update.message.reply_text("Сори, но тебя реджектнули =(")
@@ -351,9 +357,16 @@ def after_approval(update: Update, context: CallbackContext):
         state_text(update, context)
         return None
 
-    context.bot.send_message(chat_id=user['id'], text="Приглашай только тех, за кого можешь поручиться =)" \
-     "\nИ не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
-     "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей.", disable_web_page_preview=True, parse_mode=ParseMode.HTML)
+    context.bot.send_message(chat_id=user['id'],
+                             text="Приглашай только тех, за кого можешь поручиться =)" \
+                                  "\nИ не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
+                                  "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей.",
+                             reply_markup=ReplyKeyboardMarkup(
+                                 get_default_keyboard_bottom(update.effective_user.id),
+                                 resize_keyboard=True,
+                                 one_time_keyboard=True),
+                             disable_web_page_preview=True,
+                             parse_mode=ParseMode.HTML)
 
     return WAITING_PAYMENT
 
@@ -366,7 +379,7 @@ def admin_dashboard(update: Update, context: CallbackContext):
     update.message.reply_text(
         'Милорд!',
         reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True,
-                                         one_time_keyboard=True), disable_web_page_preview=True,)
+                                         one_time_keyboard=True), disable_web_page_preview=True, )
 
     return ADMIN_DASHBOARD
 
@@ -387,7 +400,7 @@ def admin_list(update: Update, context: CallbackContext):
         reply_html, reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True,)
+            one_time_keyboard=True), disable_web_page_preview=True, )
     return None
 
 
@@ -417,7 +430,7 @@ def admin_waiting_list(update: Update, context: CallbackContext):
         "Всего ждут: " + str(len(users)), reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
-            one_time_keyboard=False), disable_web_page_preview=True,)
+            one_time_keyboard=False), disable_web_page_preview=True, )
     return None
 
 
@@ -442,7 +455,10 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
         # notify user about approval
         user_reply = state_texts[WAITING_PAYMENT]
         context.bot.send_message(chat_id=user['id'],
-                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text='Понял', callback_data="Approved")]]),
+                                 reply_markup=InlineKeyboardMarkup(
+                                     [
+                                        [InlineKeyboardButton(text='Не понял(a)', callback_data="Approved")]
+                                     ]),
                                  disable_web_page_preview=True, text=user_reply, parse_mode=ParseMode.HTML)
 
     update.callback_query.answer()
@@ -556,10 +572,13 @@ def main() -> None:
             ],
             WAITING_APPROVE: [
                 MessageHandler(
-                    Filters.text, after_approval,
+                    Filters.text, after_approval_message,
                 ),
-                CallbackQueryHandler(after_approval),
+                CallbackQueryHandler(after_approval_callback, pattern=r'^(Approved$)'),
             ],
+            WAITING_PAYMENT: [
+                CallbackQueryHandler(after_approval_callback, pattern=r'^(Approved$)'),
+            ]
         },
         fallbacks=[],
         name="my_conversation",
