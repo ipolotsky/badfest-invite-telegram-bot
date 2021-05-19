@@ -12,6 +12,9 @@ Send /start to initiate the conversation.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
+import random
+import string
+
 from emoji import emojize
 import traceback
 import html
@@ -68,6 +71,8 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_INVITE_AMOUNT = 2
 
 STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT = range(4, 11)
 
@@ -130,6 +135,14 @@ def create_user(user_id):
 
 def update_user(user):
     my_persistence.users.child(str(user['id'])).update(user)
+
+
+def create_invite(user):
+    code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    while my_persistence.invites.child(code).get():
+        print("Code is already exists")
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    my_persistence.invites.child(code).update({'createor': user["id"]})
 
 
 def user_to_text(user: list, index=None):
@@ -449,6 +462,9 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
     else:
         user["status"] = STATUS_APPROVED
         update_user(user)
+
+        for i in range(DEFAULT_INVITE_AMOUNT):
+            create_invite(user)
 
         reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user_to_text(user)
 
