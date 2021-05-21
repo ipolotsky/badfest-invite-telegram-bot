@@ -87,8 +87,8 @@ class Invite:
         return html
 
     @staticmethod
-    def get(_id: int):
-        if not Invite.exists(str(_id)):
+    def get(_id: str):
+        if not Invite.exists(_id):
             raise TelegramError(f"Нет приглашения с id {_id}")
 
         invite = Invite()

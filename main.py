@@ -17,7 +17,7 @@ from emoji import emojize
 from datetime import datetime
 from re import search
 from typing import Optional
-from telegram import ReplyKeyboardMarkup, Update, ParseMode
+from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from users import User
 from invites import Invite
@@ -68,6 +68,9 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
     if buttons is None:
         buttons = []
 
+    if user.status == User.STATUS_WELCOME:
+        buttons.append(["Join waiting list"])
+
     if user.status == User.STATUS_APPROVED:
         buttons.append(["Invites", "Tickets"])
 
@@ -83,22 +86,111 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
     return buttons
 
 
+# Helpers
+
+def check_code_on_start(update: Update, code: str):
+    try:
+        invite = Invite.get(code)
+    except TelegramError:
+        update.message.reply_text(
+            "Нет такого кода реферального. Ты можешь пользоваться ботом и записаться в список ожидания, "
+            "но это такое...\n"
+            "Лучше проверь ссылку от друга на актуальность и перейди по ней заново ;)",
+        )
+        return False
+
+    if invite.activated():
+        update.message.reply_text(
+            "Эта ссылка уже активирована - попроси у друга новую и перейди по ней заново.\n"
+            "Ты можешь пользоваться ботом и записаться в список ожидания, но это такое.\n"
+        )
+        return False
+
+    return True
+
+
+def create_new_user(_id: int, _data: dict, status):
+    user = User.create_new(_id)
+    user.set_data(_data)
+    user.status = status
+    user.save()
+    return user
+
+
 # User actions (changes conversation state)
 
-def action_start(update: Update, context: CallbackContext) -> int:
+def action_start(update: Update, context: CallbackContext) -> None:
+    if len(context.args) and context.args[0]:
+        code = context.args[0]
+        check = check_code_on_start(update, code)
+        if not check:
+            return None
+
+        invite = Invite.get(code)
+        reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n" \
+                     f"Почитай информацию по кнопке Info внизу."
+        update.message.reply_text(reply_text,
+                                  reply_markup=ReplyKeyboardMarkup([['Info']]),
+                                  disable_web_page_preview=True, )
+
+        markup_buttons = [[
+            InlineKeyboardButton(text="Принять", callback_data=f"Accept:{code}"),
+            InlineKeyboardButton(text="Отклонить", callback_data=f"Decline:{code}"),
+        ]]
+        update.message.reply_text(
+            text=f"И принимай решение по приглашению:",
+            disable_web_page_preview=True,
+            reply_markup=InlineKeyboardMarkup(markup_buttons))
+        return None
+
     reply_text = state_texts[STARTING]
 
-    user = User.create_new(update.effective_user.id)
-    user.status = User.STATUS_WELCOME
-    user.set_data(update.effective_user.to_dict())
-    user.save()
-
+    user = create_new_user(update.effective_user.id, update.effective_user.to_dict(), User.STATUS_WELCOME)
     update.message.reply_text(
         reply_text,
-        reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(user, [['Join waiting list']]),
+        reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(user),
                                          resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
 
     return STARTING
+
+
+def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
+    code = update.callback_query.data.split(':')[1]
+    check = check_code_on_start(update, code)
+    if not check:
+        return None
+    invite = Invite.get(code)
+    user = create_new_user(update.effective_user.id, update.effective_user.to_dict(), User.STATUS_BY_REFERRAL)
+    invite.participant = user
+    invite.save()
+
+    context.bot.send_message(chat_id=invite.creator.id, text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое пришлашение! :)")
+
+    markup_buttons = []
+    if user.first_name or user.last_name:
+        markup_buttons = [[InlineKeyboardButton(text=user.full_name(), callback_data=user.full_name())]]
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text=state_texts[WAITING_NAME],
+                                            disable_web_page_preview=True,
+                                            reply_markup=InlineKeyboardMarkup(markup_buttons),
+                                            parse_mode=ParseMode.HTML)
+
+    return WAITING_NAME
+
+
+def decline_invite(update: Update, context: CallbackContext) -> Optional[int]:
+    code = update.callback_query.data.split(':')[1]
+    invite = Invite.get(code)
+    context.bot.send_message(chat_id=invite.creator.id, text=f"Твое приглашение ({code}) не приняли :(")
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text="Штош. Если передумаешь, можешь заново пройти по ссылке"
+                                                 " либо записаться в список ожидания.",
+                                            disable_web_page_preview=True,
+                                            parse_mode=ParseMode.HTML)
+
+    return None
 
 
 def action_join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]:
@@ -119,7 +211,7 @@ def action_join_waiting_list(update: Update, context: CallbackContext) -> Option
     update.message.reply_text(
         text=state_texts[WAITING_NAME],
         disable_web_page_preview=True,
-        reply_markup=InlineKeyboardMarkup(markup_buttons), )
+        reply_markup=InlineKeyboardMarkup(markup_buttons))
 
     return WAITING_NAME
 
@@ -239,6 +331,12 @@ def action_after_approval_message(update: Update, context: CallbackContext):
 
 # User show data functions:
 
+def show_info(update: Update, context: CallbackContext):
+    update.message.reply_html(
+        f"Здесь будет вся информация про фест"
+    )
+
+
 def show_invites(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     index = 1
@@ -268,7 +366,7 @@ def show_state_text(update: Update, context: CallbackContext):
                 resize_keyboard=True,
                 one_time_keyboard=True), disable_web_page_preview=True, )
     else:
-        update.message.reply_text("Жамкни /start")
+        update.message.reply_text("Жамкни /start, только если у тебя нет ссылки от друга/подруги")
 
     return None
 
@@ -369,7 +467,8 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
     user = User.get(int(string_user_id))
 
     if not (user.status in [User.STATUS_IN_WAITING_LIST, User.STATUS_BY_REFERRAL]):
-        reply_text = emojize(":man_detective:", use_aliases=True) + " Возможно другой админ уже заапрувил " + user.pretty_html()
+        reply_text = emojize(":man_detective:",
+                             use_aliases=True) + " Возможно другой админ уже заапрувил " + user.pretty_html()
     else:
         reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user.pretty_html()
 
@@ -403,7 +502,8 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
     user = User.get(int(string_user_id))
 
     if not (user.status in [User.STATUS_IN_WAITING_LIST, User.STATUS_BY_REFERRAL]):
-        reply_text = emojize(":face_with_symbols_on_mouth:",use_aliases=True) + " Возможно другой админ уже заапрувил или отклонил " + user.pretty_html()
+        reply_text = emojize(":face_with_symbols_on_mouth:",
+                             use_aliases=True) + " Возможно другой админ уже заапрувил или отклонил " + user.pretty_html()
     else:
         user.status = User.STATUS_REJECTED
         user.save()
@@ -415,7 +515,8 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
                      " таковы правила.\nЧто теперь? Если ты считаешь это несправедливым, то напиши нам " \
                      "(контакты в разделе Инфы) и обсудим."
         context.bot.send_message(chat_id=user.id,
-                                 reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(user, None, False), resize_keyboard=True),
+                                 reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(user, None, False),
+                                                                  resize_keyboard=True),
                                  disable_web_page_preview=True, text=user_reply, parse_mode=ParseMode.HTML)
 
     update.callback_query.answer()
@@ -455,7 +556,11 @@ def main() -> None:
     dispatcher.add_handler(conv_admin_handler)
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', action_start)],
+        entry_points=[
+            CommandHandler('start', action_start),
+            CallbackQueryHandler(accept_invite, pattern=r'^(Accept.*$)'),
+            CallbackQueryHandler(decline_invite, pattern=r'^(Decline.*$)'),
+        ],
         states={
             STARTING: [
                 MessageHandler(Filters.regex('^Join waiting list$'), action_join_waiting_list),
@@ -492,6 +597,9 @@ def main() -> None:
         persistent=True,
     )
     dispatcher.add_handler(conv_handler)
+
+    show_info_handler = MessageHandler(Filters.regex('^Info'), show_info)
+    dispatcher.add_handler(show_info_handler)
 
     show_data_handler = MessageHandler(Filters.text, show_state_text)
     dispatcher.add_handler(show_data_handler)
