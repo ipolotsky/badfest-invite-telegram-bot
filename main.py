@@ -12,8 +12,6 @@ Send /start to initiate the conversation.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
-import random
-import string
 import logging
 from emoji import emojize
 from datetime import datetime
@@ -21,7 +19,8 @@ from re import search
 from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from User import User
+from users import User
+from invites import Invite
 from error_handler import error_handler
 from fire_persistence import FirebasePersistence
 from telegram.ext import (
@@ -41,8 +40,6 @@ logging.basicConfig(
 
 store = FirebasePersistence()
 
-DEFAULT_INVITE_AMOUNT = 2
-
 STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT = range(4, 11)
 
 state_texts = dict([
@@ -55,14 +52,6 @@ state_texts = dict([
     (WAITING_PAYMENT, "Хей! Тебя заапрувили! Теперь ты можешь покупать билет, а также у тебя есть две ссылки,"
                       " по которым ты можешь пригласить друзей."),
 ])
-
-
-def create_invite(user):
-    code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-    while store.invites.child(code).get():
-        print("Code is already exists")
-        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-    store.invites.child(code).update({'creator': user.id})
 
 
 # Telegram bot keyboards functions
@@ -80,7 +69,7 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
         buttons = []
 
     if user.status == User.STATUS_APPROVED:
-        buttons.append(["Ссылки друзьям", "Билеты"])
+        buttons.append(["Invites", "Tickets"])
 
     key_board = ['Status', 'Info']
     if user.admin:
@@ -101,7 +90,6 @@ def action_start(update: Update, context: CallbackContext) -> int:
 
     user = User.create_new(update.effective_user.id)
     user.status = User.STATUS_WELCOME
-    user.created = datetime.now().timestamp()
     user.set_data(update.effective_user.to_dict())
     user.save()
 
@@ -251,6 +239,19 @@ def action_after_approval_message(update: Update, context: CallbackContext):
 
 # User show data functions:
 
+def show_invites(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    index = 1
+    for invite in Invite.by_creator(user):
+        reply_html = invite.pretty_html(index)
+        markup_buttons = []
+
+        update.message.reply_html(
+            text=reply_html,
+            disable_web_page_preview=True)
+        index += 1
+
+
 def show_status(update: Update, context: CallbackContext) -> None:
     update.message.reply_html(
         f"Все, что знаем о тебе\n\n{User.get(update.effective_user.id).pretty_html()}"
@@ -310,12 +311,12 @@ def admin_show_list(update: Update, context: CallbackContext):
         update.message.reply_text("Ну-ка! Куда полез!?")
         return None
 
-    i = 1  # что это блять, Илюша?
+    index = 1
     users = User.all()
     reply_html = "<b>Все участники:</b> (" + str(len(users)) + ")\n"
     for user in users:
-        reply_html += user.pretty_html(i)
-        i += 1
+        reply_html += user.pretty_html(index)
+        index += 1
 
     update.message.reply_html(
         reply_html, reply_markup=ReplyKeyboardMarkup(
@@ -370,13 +371,11 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
     if not (user.status in [User.STATUS_IN_WAITING_LIST, User.STATUS_BY_REFERRAL]):
         reply_text = emojize(":man_detective:", use_aliases=True) + " Возможно другой админ уже заапрувил " + user.pretty_html()
     else:
+        reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user.pretty_html()
+
         user.status = User.STATUS_APPROVED
         user.save()
-
-        for i in range(DEFAULT_INVITE_AMOUNT):
-            create_invite(user)
-
-        reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user.pretty_html()
+        Invite.generate_invites(user)
 
         # notify user about approval
         user_reply = state_texts[WAITING_PAYMENT]
@@ -484,7 +483,7 @@ def main() -> None:
                 CallbackQueryHandler(action_after_approval_callback, pattern=r'^(Approved$)'),
             ],
             WAITING_PAYMENT: [
-                # MessageHandler(Filters.regex('^Invites$'), show_invites),
+                MessageHandler(Filters.regex('^Invites$'), show_invites),
                 CallbackQueryHandler(action_after_approval_callback, pattern=r'^(Approved$)'),
             ]
         },

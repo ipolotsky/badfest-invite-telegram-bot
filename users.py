@@ -132,7 +132,7 @@ class User:
             raise TelegramError(f"Отсутстует id")
 
         _data = store.users.child(str(self._id)).get()
-        if not self._data:
+        if not _data:
             raise TelegramError(f"Нет данных по пользователю с id: {self._id}")
 
         self._data = _data
@@ -171,7 +171,11 @@ class User:
     def create_new(_id: int):
         if User.exists(_id):
             raise TelegramError(f"Попытка создать пользователя с существующем id {_id}")
-        store.users.child(str(_id)).update({'id': _id})
+
+        store.users.child(str(_id)).update({
+            'id': _id,
+            'created': datetime.now().timestamp()
+        })
 
         user = User()
         user.id = _id

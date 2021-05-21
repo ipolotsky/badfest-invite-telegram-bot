@@ -9,7 +9,7 @@ from telegram.ext import (
     CallbackContext,
 )
 
-from User import User
+from users import User
 
 logger = logging.getLogger(__name__)
 
