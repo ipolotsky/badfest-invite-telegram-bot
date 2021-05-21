@@ -79,11 +79,11 @@ class Invite:
         self._data = _data
 
     def pretty_html(self, index: int = None):
-        html = emojize(":handshake:", use_aliases=True) + f" <b>{(' #' + str(index)) if index else ''} Приглашение на BadFest2021</b>\n"
+        html = emojize(":handshake:", use_aliases=True) + f" <b>Приглашение на BadFest2021 от {self.creator.real_name}</b>\n"
         if self.activated():
             html += f"Выдано и активировано <a href='tg://user?id={self.participant.id}'>{self.participant.username}</a>"
         else:
-            html += f"Свободно - делись им с другом скорее этой ссылкой <a href='https://t.me/badbarbot?start={self.id}'>https://t.me/badbarbot?start={self.id}</a>"
+            html += f"Твой код: {self.id}. Переходи по этой ссылке и регайся в боте: <a href='https://t.me/badbarbot?start={self.id}'>https://t.me/badbarbot?start={self.id}</a>"
         return html
 
     @staticmethod

@@ -42,6 +42,10 @@ store = FirebasePersistence()
 
 STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT = range(4, 11)
 
+BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
+BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
+BUTTON_ADMIN_ALL = "Все пользователи"
+
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021'),
     (WAITING_NAME, 'Такс, давай знакомиться! Немного вопросиков, чтобы мы знали, кто ты такой(ая). \nКак тебя зовут?'),
@@ -59,8 +63,8 @@ state_texts = dict([
 def admin_keyboard(buttons=None):
     if buttons is None:
         buttons = []
-    buttons.append(['Check needed', 'Waiting list'])
-    buttons.append(['List all', 'Back'])
+    buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST)])
+    buttons.append([str(BUTTON_ADMIN_ALL), 'Back'])
     return buttons
 
 
@@ -130,8 +134,10 @@ def action_start(update: Update, context: CallbackContext) -> None:
         reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n" \
                      f"Почитай информацию по кнопке Info внизу."
         update.message.reply_text(reply_text,
-                                  reply_markup=ReplyKeyboardMarkup([['Info']]),
-                                  disable_web_page_preview=True, )
+                                  reply_markup=ReplyKeyboardMarkup([['Info']],
+                                                                   resize_keyboard=True,
+                                                                   one_time_keyboard=True),
+                                  disable_web_page_preview=True)
 
         markup_buttons = [[
             InlineKeyboardButton(text="Принять", callback_data=f"Accept:{code}"),
@@ -284,6 +290,13 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         return None
 
     user.vk = text
+
+    if user.status == User.STATUS_IN_WAITING_LIST:
+        user.status = User.STATUS_IN_WAITING_LIST_CHECKED
+
+    if user.status == User.STATUS_BY_REFERRAL:
+        user.status = User.STATUS_BY_REFERRAL_CHECKED
+
     user.save()
 
     reply_text = state_texts[WAITING_APPROVE]
@@ -340,6 +353,11 @@ def show_info(update: Update, context: CallbackContext):
 def show_invites(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     index = 1
+
+    update.message.reply_html(
+        text="Зови друзей, пересылая пришлашения ниже:",
+        disable_web_page_preview=True)
+
     for invite in Invite.by_creator(user):
         reply_html = invite.pretty_html(index)
         markup_buttons = []
@@ -424,13 +442,23 @@ def admin_show_list(update: Update, context: CallbackContext):
     return None
 
 
-def admin_show_waiting_list(update: Update, context: CallbackContext):
+def admin_show_approval_list(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
         update.message.reply_text("Ну-ка! Куда полез!?")
         return None
 
-    users = User.waiting()
+    if not len(context.matches):
+        update.message.reply_text("Неверная команда")
+        return None
+
+    users = []
+    if context.matches[0].string == BUTTON_ADMIN_WAITING_LIST:
+        users = User.by_status(User.STATUS_IN_WAITING_LIST_CHECKED)
+
+    if context.matches[0].string == BUTTON_ADMIN_CHECK_NEEDED:
+        users = User.by_status(User.STATUS_BY_REFERRAL_CHECKED)
+
     i = 1  # что это блять, Илюша?
     for user in users:
         reply_html = user.pretty_html(i)
@@ -466,7 +494,7 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
     string_user_id = update.callback_query.data.split(':')[1]
     user = User.get(int(string_user_id))
 
-    if not (user.status in [User.STATUS_IN_WAITING_LIST, User.STATUS_BY_REFERRAL]):
+    if not (user.status in [User.STATUS_IN_WAITING_LIST_CHECKED, User.STATUS_BY_REFERRAL_CHECKED]):
         reply_text = emojize(":man_detective:",
                              use_aliases=True) + " Возможно другой админ уже заапрувил " + user.pretty_html()
     else:
@@ -481,7 +509,7 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
         context.bot.send_message(chat_id=user.id,
                                  reply_markup=InlineKeyboardMarkup(
                                      [
-                                         [InlineKeyboardButton(text='Не понял(a)', callback_data="Approved")]
+                                         [InlineKeyboardButton(text='Понял(a)', callback_data="approved_dashboard")]
                                      ]),
                                  disable_web_page_preview=True, text=user_reply, parse_mode=ParseMode.HTML)
 
@@ -534,16 +562,18 @@ def main() -> None:
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    show_data_handler = MessageHandler(Filters.regex('^Status$'), show_status)
-    dispatcher.add_handler(show_data_handler)
+    dispatcher.add_handler(MessageHandler(Filters.regex('^Status$'), show_status))
+    dispatcher.add_handler(MessageHandler(Filters.regex('^Info'), show_info))
 
     conv_admin_handler = ConversationHandler(
         entry_points=[MessageHandler(Filters.regex('^Admin$'), admin_action_dashboard)],
         states={
             ADMIN_DASHBOARD: [
-                MessageHandler(Filters.regex('^List all'), admin_show_list),
-                # MessageHandler(Filters.regex('^Check needed$'), admin_need_check),
-                MessageHandler(Filters.regex('^Waiting list$'), admin_show_waiting_list),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
+                               admin_show_approval_list, pass_user_data=True),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
+                               admin_show_approval_list, pass_user_data=True),
                 MessageHandler(Filters.regex('^Back'), admin_action_back),
                 CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
                 CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
@@ -585,11 +615,11 @@ def main() -> None:
                 MessageHandler(
                     Filters.text, action_after_approval_message,
                 ),
-                CallbackQueryHandler(action_after_approval_callback, pattern=r'^(Approved$)'),
+                CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
             ],
             WAITING_PAYMENT: [
                 MessageHandler(Filters.regex('^Invites$'), show_invites),
-                CallbackQueryHandler(action_after_approval_callback, pattern=r'^(Approved$)'),
+                CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
             ]
         },
         fallbacks=[],
@@ -597,13 +627,7 @@ def main() -> None:
         persistent=True,
     )
     dispatcher.add_handler(conv_handler)
-
-    show_info_handler = MessageHandler(Filters.regex('^Info'), show_info)
-    dispatcher.add_handler(show_info_handler)
-
-    show_data_handler = MessageHandler(Filters.text, show_state_text)
-    dispatcher.add_handler(show_data_handler)
-
+    dispatcher.add_handler(MessageHandler(Filters.text, show_state_text))
     dispatcher.add_error_handler(error_handler)
 
     # Start the Bot

@@ -12,7 +12,9 @@ class User:
 
     STATUS_WELCOME = 'just_open_bot'
     STATUS_IN_WAITING_LIST = 'waiting_list'
+    STATUS_IN_WAITING_LIST_CHECKED = 'waiting_list_checked'
     STATUS_BY_REFERRAL = 'by_referral_link'
+    STATUS_BY_REFERRAL_CHECKED = 'by_referral_link_checked'
     STATUS_APPROVED = 'approved'
     STATUS_REJECTED = 'rejected'
     STATUS_READY = 'ready'
@@ -193,7 +195,6 @@ class User:
         return list(filter(lambda user: user.admin, User.all()))
 
     @staticmethod
-    def waiting():
-        return list(filter(lambda user: user.status == User.STATUS_IN_WAITING_LIST, User.all()))
-
+    def by_status(_status: str):
+        return list(filter(lambda user: user.status == _status, User.all()))
 
