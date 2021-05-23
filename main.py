@@ -14,11 +14,12 @@ bot.
 """
 import logging
 from emoji import emojize
-from datetime import datetime
 from re import search
 from typing import Optional
-from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove
+from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+from tickets import Ticket
 from users import User
 from invites import Invite
 from error_handler import error_handler
@@ -30,7 +31,7 @@ from telegram.ext import (
     Filters,
     ConversationHandler,
     CallbackQueryHandler,
-    CallbackContext,
+    CallbackContext, PreCheckoutQueryHandler,
 )
 
 # Enable logging
@@ -41,8 +42,8 @@ logging.basicConfig(
 store = FirebasePersistence()
 
 STARTING, WAITING_NAME, WAITING_INSTA, \
-        WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT, \
-        WAITING_FOR_MANUAL_CODE = range(4, 12)
+WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT, \
+WAITING_FOR_MANUAL_CODE = range(4, 12)
 
 BUTTON_JOIN_WAITING_LIST = "Join waiting list"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
@@ -190,7 +191,8 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
 
     markup_buttons = []
     if user.first_name or user.last_name:
-        markup_buttons = [[InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
+        markup_buttons = [
+            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=state_texts[WAITING_NAME],
@@ -228,7 +230,8 @@ def action_join_waiting_list(update: Update, context: CallbackContext) -> Option
 
     markup_buttons = []
     if user.first_name or user.last_name:
-        markup_buttons = [[InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
+        markup_buttons = [
+            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
 
     update.message.reply_text(
         text=state_texts[WAITING_NAME],
@@ -318,7 +321,9 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
     reply_text = state_texts[WAITING_APPROVE]
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(user, [[str(BUTTON_I_HAVE_CODE)]] if user.status == User.STATUS_IN_WAITING_LIST_CHECKED else None), resize_keyboard=True,
+            get_default_keyboard_bottom(user, [
+                [str(BUTTON_I_HAVE_CODE)]] if user.status == User.STATUS_IN_WAITING_LIST_CHECKED else None),
+            resize_keyboard=True,
             one_time_keyboard=True), disable_web_page_preview=True)
 
     for admin in User.admins():
@@ -380,8 +385,8 @@ def action_enter_code(update: Update, context: CallbackContext):
                              text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое пришлашение! :)")
 
     update.message.reply_text("Шик! Код успешно применен!", reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(user), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+        get_default_keyboard_bottom(user), resize_keyboard=True,
+        one_time_keyboard=True), disable_web_page_preview=True)
 
     return WAITING_APPROVE
 
@@ -434,6 +439,65 @@ def show_invites(update: Update, context: CallbackContext):
             text=reply_html,
             disable_web_page_preview=True)
         index += 1
+
+
+def show_tickets(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if user.status != User.STATUS_APPROVED:
+        update.message.reply_text("Рано еще!")
+        return None
+
+    index = 1
+    update.message.reply_html(
+        text="Выбирай билет и покупай прямо тут в телеграме (да, так уже можно, начиная с апреля этого года)\n"
+             "Продолжая покупку, ты соглашаешься с <a href='http://badbar.ru'>правилами использования</a>, "
+             "<a href='http://badbar.ru'>политикой конфеденциальности</a> и "
+             "<a href='http://badbar.ru'>прочей лабудой</a>, которая нам, к сожалению, нужна:\n\n ",
+        disable_web_page_preview=True)
+
+    print(str(Ticket.by_type(Ticket.PAID_TYPE)))
+    for ticket in Ticket.by_type(Ticket.PAID_TYPE):
+        # reply_html = ticket.pretty_html(index)
+        payload = user.id
+        provider_token = "381764678:TEST:26026"
+        currency = "RUB"
+        prices = [LabeledPrice(ticket.id, ticket.price * 10000)]
+
+        context.bot.send_invoice(
+            user.id, emojize(":label:", use_aliases=True) + ticket.id,
+            ticket.description, payload, provider_token, currency, prices,
+            need_email=True, need_phone_number=True, max_tip_amount=100000
+        )
+
+        index += 1
+
+
+# after (optional) shipping, it's the pre-checkout
+def precheckout_callback(update: Update, _: CallbackContext) -> None:
+    query = update.pre_checkout_query
+    # check the payload, is this from your bot?
+    if not query.invoice_payload:
+        query.answer(ok=False, error_message=f"Payload какой-то не такой... пустой, нет его")
+        return None
+
+    try:
+        user = User.get(int(query.invoice_payload))
+        if user.status != User.STATUS_APPROVED:
+            query.answer(ok=False, error_message=f"Так так... Пользователь {user.real_name} с id {user.id} "
+                                                 f"и статусом {user.status} не подтвержден для покупки.")
+            return None
+    except:
+        # answer False pre_checkout_query
+        query.answer(ok=False, error_message=f"Нет пользователя с таким id:{query.invoice_payload}")
+        return None
+
+    query.answer(ok=True)
+
+
+# finally, after contacting the payment provider...
+def successful_payment_callback(update: Update, _: CallbackContext) -> None:
+    # do something after successfully receiving payment? 1111 1111 1111 1026, 12/22, CVC 000.
+    update.message.reply_text("Thank you for your payment!")
 
 
 def show_status(update: Update, context: CallbackContext) -> None:
@@ -630,6 +694,12 @@ def main() -> None:
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
+    # Pre-checkout handler to final check
+    dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+
+    # Success! Notify your user!
+    dispatcher.add_handler(MessageHandler(Filters.successful_payment, successful_payment_callback))
+
     dispatcher.add_handler(MessageHandler(Filters.regex('^Status$'), show_status))
     dispatcher.add_handler(MessageHandler(Filters.regex('^Info'), show_info))
 
@@ -692,6 +762,7 @@ def main() -> None:
             ],
             WAITING_PAYMENT: [
                 MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
+                MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
                 CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
             ]
         },
