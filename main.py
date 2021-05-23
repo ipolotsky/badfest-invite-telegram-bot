@@ -17,7 +17,7 @@ from emoji import emojize
 from datetime import datetime
 from re import search
 from typing import Optional
-from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError
+from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from users import User
 from invites import Invite
@@ -40,21 +40,30 @@ logging.basicConfig(
 
 store = FirebasePersistence()
 
-STARTING, WAITING_NAME, WAITING_INSTA, WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT = range(4, 11)
+STARTING, WAITING_NAME, WAITING_INSTA, \
+        WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT, \
+        WAITING_FOR_MANUAL_CODE = range(4, 12)
 
+BUTTON_JOIN_WAITING_LIST = "Join waiting list"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
 BUTTON_ADMIN_ALL = "Все пользователи"
+BUTTON_I_HAVE_CODE = "У меня есть код"
+BUTTON_BACK = "Назад"
+BUTTON_INVITES = "Приглашения"
+BUTTON_TICKETS = "Билеты"
+CALLBACK_BUTTON_BACK = "Realname"
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021'),
     (WAITING_NAME, 'Такс, давай знакомиться! Немного вопросиков, чтобы мы знали, кто ты такой(ая). \nКак тебя зовут?'),
     (WAITING_INSTA, 'Скинь, плиз, ссылку на инсту'),
     (WAITING_VK, 'Скинь, плиз, ссылку на vk'),
-    (WAITING_APPROVE, 'Ееееее! Ну все, теперь жди - как только модераторы тебя чекнут, тебе прилетят реферальные '
+    (WAITING_APPROVE, 'Ну все, теперь жди - как только модераторы тебя чекнут, тебе прилетят реферальные '
                       'ссылки, чтобы пригласить друзей, а также ты сможешь оплатить билет прямо тут.'),
     (WAITING_PAYMENT, "Хей! Тебя заапрувили! Теперь ты можешь покупать билет, а также у тебя есть две ссылки,"
                       " по которым ты можешь пригласить друзей."),
+    (WAITING_FOR_MANUAL_CODE, "Супер! Введи код, плиз:")
 ])
 
 
@@ -69,14 +78,20 @@ def admin_keyboard(buttons=None):
 
 
 def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True):
+    convs = store.get_conversations("my_conversation")
+    state = convs.get(tuple([user.id, user.id]))
+
     if buttons is None:
         buttons = []
 
-    if user.status == User.STATUS_WELCOME:
-        buttons.append(["Join waiting list"])
+    if state in [WAITING_APPROVE] and user.status == User.STATUS_IN_WAITING_LIST_CHECKED:
+        buttons.append([str(BUTTON_I_HAVE_CODE)])
 
-    if user.status == User.STATUS_APPROVED:
-        buttons.append(["Invites", "Tickets"])
+    if user.status == User.STATUS_WELCOME:
+        buttons.append([str(BUTTON_JOIN_WAITING_LIST)])
+
+    if state in [WAITING_PAYMENT]:
+        buttons.append([str(BUTTON_INVITES), str(BUTTON_TICKETS)])
 
     key_board = ['Status', 'Info']
     if user.admin:
@@ -170,11 +185,12 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
     invite.participant = user
     invite.save()
 
-    context.bot.send_message(chat_id=invite.creator.id, text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое пришлашение! :)")
+    context.bot.send_message(chat_id=invite.creator.id,
+                             text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое пришлашение! :)")
 
     markup_buttons = []
     if user.first_name or user.last_name:
-        markup_buttons = [[InlineKeyboardButton(text=user.full_name(), callback_data=user.full_name())]]
+        markup_buttons = [[InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=state_texts[WAITING_NAME],
@@ -212,7 +228,7 @@ def action_join_waiting_list(update: Update, context: CallbackContext) -> Option
 
     markup_buttons = []
     if user.first_name or user.last_name:
-        markup_buttons = [[InlineKeyboardButton(text=user.full_name(), callback_data=user.full_name())]]
+        markup_buttons = [[InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
 
     update.message.reply_text(
         text=state_texts[WAITING_NAME],
@@ -241,8 +257,8 @@ def action_set_name(update: Update, context: CallbackContext) -> int:
 
 def action_set_name_callback(update: Update, context: CallbackContext) -> int:
     user = User.get(update.effective_user.id)
-    text = update.callback_query.data
-    user.real_name = text.strip()
+    real_name = update.callback_query.data.split(':')[1]
+    user.real_name = real_name.strip()
     user.save()
 
     reply_text = (
@@ -302,7 +318,7 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
     reply_text = state_texts[WAITING_APPROVE]
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(user), resize_keyboard=True,
+            get_default_keyboard_bottom(user, [[str(BUTTON_I_HAVE_CODE)]] if user.status == User.STATUS_IN_WAITING_LIST_CHECKED else None), resize_keyboard=True,
             one_time_keyboard=True), disable_web_page_preview=True)
 
     for admin in User.admins():
@@ -315,7 +331,59 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
 def action_after_approval_callback(update: Update, context: CallbackContext):
     update.callback_query.answer()
     update.callback_query.delete_message()
-    action_after_approval_message(update, context)
+    return action_after_approval_message(update, context)
+
+
+def action_wait_code(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    update.message.reply_text(
+        state_texts[WAITING_FOR_MANUAL_CODE], reply_markup=ReplyKeyboardRemove(), disable_web_page_preview=True)
+
+    return WAITING_FOR_MANUAL_CODE
+
+
+def action_back_from_manual_code(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    update.message.reply_text(
+        state_texts[WAITING_APPROVE], reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user, [[str(BUTTON_I_HAVE_CODE)]]), resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+
+    return WAITING_APPROVE
+
+
+def action_enter_code(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    code = update.message.text.strip()
+    try:
+        invite = Invite.get(code)
+    except TelegramError:
+        update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user, [[str(BUTTON_BACK)]]), resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+        return None
+
+    if invite.activated():
+        update.message.reply_text("Этот код уже активирован - попроси у друга новый", reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user, [[str(BUTTON_BACK)]]), resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+        return None
+
+    user.status = User.STATUS_BY_REFERRAL_CHECKED
+    user.save()
+
+    invite = Invite.get(code)
+    invite.participant = user
+    invite.save()
+
+    context.bot.send_message(chat_id=invite.creator.id,
+                             text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое пришлашение! :)")
+
+    update.message.reply_text("Шик! Код успешно применен!", reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user), resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+
+    return WAITING_APPROVE
 
 
 def action_after_approval_message(update: Update, context: CallbackContext):
@@ -333,7 +401,7 @@ def action_after_approval_message(update: Update, context: CallbackContext):
                                   "\nИ не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
                                   "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей.",
                              reply_markup=ReplyKeyboardMarkup(
-                                 get_default_keyboard_bottom(user),
+                                 get_default_keyboard_bottom(user, [[str(BUTTON_INVITES), str(BUTTON_TICKETS)]]),
                                  resize_keyboard=True,
                                  one_time_keyboard=True),
                              disable_web_page_preview=True,
@@ -593,13 +661,13 @@ def main() -> None:
         ],
         states={
             STARTING: [
-                MessageHandler(Filters.regex('^Join waiting list$'), action_join_waiting_list),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_JOIN_WAITING_LIST)}'), action_join_waiting_list),
             ],
             WAITING_NAME: [
                 MessageHandler(
                     Filters.text, action_set_name
                 ),
-                CallbackQueryHandler(action_set_name_callback),
+                CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_BACK}:.*$'),
             ],
             WAITING_INSTA: [
                 MessageHandler(
@@ -612,13 +680,18 @@ def main() -> None:
                 )
             ],
             WAITING_APPROVE: [
+                MessageHandler(Filters.regex(f'^{str(BUTTON_I_HAVE_CODE)}'), action_wait_code),
                 MessageHandler(
                     Filters.text, action_after_approval_message,
                 ),
                 CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
             ],
+            WAITING_FOR_MANUAL_CODE: [
+                MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), action_back_from_manual_code),
+                MessageHandler(Filters.text, action_enter_code),
+            ],
             WAITING_PAYMENT: [
-                MessageHandler(Filters.regex('^Invites$'), show_invites),
+                MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
                 CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
             ]
         },
