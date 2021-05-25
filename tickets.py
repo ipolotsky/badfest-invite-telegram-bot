@@ -7,7 +7,6 @@ store = FirebasePersistence()
 
 
 class Ticket:
-
     PAID_TYPE = "paid"
     FREE_TYPE = "free"
 
@@ -76,7 +75,7 @@ class Ticket:
         return "<b>{}{}</b>\n{}".format(str(index) + ". " if index else "", self.id, self.description)
 
     @staticmethod
-    def get(_id: int):
+    def get(_id: str):
         if not Ticket.exists(_id):
             raise TelegramError(f"Нет билета с id {_id}")
         ticket = Ticket()
@@ -86,8 +85,8 @@ class Ticket:
         return ticket
 
     @staticmethod
-    def exists(_id: int):
-        return bool(store.tickets.child(str(_id)).get())
+    def exists(_id: str):
+        return bool(store.tickets.child(_id).get())
 
     @staticmethod
     def create_new(_id: int):
@@ -103,4 +102,3 @@ class Ticket:
     @staticmethod
     def by_type(_type: str):
         return list(filter(lambda ticket: ticket.type == _type, Ticket.all()))
-
