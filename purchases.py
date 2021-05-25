@@ -6,6 +6,8 @@ from fire_persistence import FirebasePersistence
 from tickets import Ticket
 from users import User
 from utils import helper
+from PIL import Image, ImageDraw, ImageFont
+import pyqrcode
 
 store = FirebasePersistence()
 
@@ -152,6 +154,39 @@ class Purchase:
         return f"Твой билет '{self.ticket_name}' на BadFest 2021!\n" \
                f"Стоимость: {self.total_amount / 100}р.\n" \
                f"Дата покупки: {self.created}"
+
+    def create_image(self):
+        # generate qr
+        big_code = pyqrcode.create(self.id)
+        big_code.png('tmp_code.png', scale=20, module_color=[0, 0, 0, 128], background=(255, 255, 255))
+
+        qr = Image.open("tmp_code.png")
+        ticket_width = qr.width + 60
+
+        # get qr img
+        qr_img = Image.new('RGB', (ticket_width, ticket_width), color=(255, 218, 0))
+        qr_img.paste(qr, (30, 30))
+
+        # get text img
+        text_img = Image.new('RGB', (ticket_width, 420), color=(255, 218, 0))
+        d = ImageDraw.Draw(text_img)
+        master_font = ImageFont.FreeTypeFont('HelveticaBlack.ttf', 60, encoding="utf-8")
+        d.text((50, 50), "BadFest 2021 / 26-27 июня", fill=(0, 0, 0), font=master_font)
+        slave_font = ImageFont.FreeTypeFont('arial.ttf', 40, encoding="utf-8")
+        d.text((60, 130), 'Имя: ' + self.user.real_name, fill=(0, 0, 0), font=slave_font)
+        d.text((60, 180), 'Тип: ' + self.ticket_name, fill=(0, 0, 0), font=slave_font)
+        d.text((60, 230), 'Стоимость: ' + str(self.total_amount / 100) + ' рублей', fill=(0, 0, 0), font=slave_font)
+        d.text((60, 280), 'Дата: ' + self.created, fill=(0, 0, 0), font=slave_font)
+
+        # get ticket size
+        ticket_height = qr_img.height + text_img.height
+
+        # concatenate text and qr
+        purchase = Image.new('RGB', (ticket_width, ticket_height))
+        purchase.paste(text_img, (0, 0))
+        purchase.paste(qr_img, (0, text_img.height))
+
+        purchase.save(f'images/{self.id}.png')
 
     @staticmethod
     def get(_id: str):

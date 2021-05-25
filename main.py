@@ -46,8 +46,8 @@ logging.basicConfig(
 store = FirebasePersistence()
 
 STARTING, WAITING_NAME, WAITING_INSTA, \
-WAITING_VK, WAITING_APPROVE, ADMIN_DASHBOARD, WAITING_PAYMENT, \
-WAITING_FOR_MANUAL_CODE, READY_DASHBOARD = range(4, 13)
+WAITING_VK, WAITING_APPROVE, WAITING_PAYMENT, \
+WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 10)
 
 BUTTON_JOIN_WAITING_LIST = "Join waiting list"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
@@ -424,7 +424,7 @@ def action_after_approval_message(update: Update, context: CallbackContext):
     return WAITING_PAYMENT
 
 
-def action_successful_payment_callback(update: Update, _: CallbackContext) -> None:
+def action_successful_payment_callback(update: Update, context: CallbackContext) -> None:
     # successfully receiving payment 1111 1111 1111 1026, 12/22, CVC 000.
     payment = update.message.successful_payment
     user = User.get(update.effective_user.id)
@@ -440,6 +440,8 @@ def action_successful_payment_callback(update: Update, _: CallbackContext) -> No
     purchase.provider_payment_charge_id = payment.provider_payment_charge_id
     purchase.save()
 
+    purchase.create_image()
+
     user.status = User.STATUS_READY
     user.save()
 
@@ -449,6 +451,17 @@ def action_successful_payment_callback(update: Update, _: CallbackContext) -> No
         one_time_keyboard=True),
                               disable_web_page_preview=True,
                               parse_mode=ParseMode.HTML)
+    reply_html = purchase.pretty_html()
+    context.bot.send_message(
+        user.id,
+        text=reply_html,
+        disable_web_page_preview=True)
+
+    try:
+        with open(f'images/{purchase.id}.png', 'rb') as f:
+            context.bot.send_photo(user.id, photo=f, timeout=50)
+    except:
+        logging.log(logging.ERROR, "File not found")
 
     return READY_DASHBOARD
 
@@ -484,6 +497,11 @@ def show_my_ticket(update: Update, context: CallbackContext):
         update.message.reply_html(
             text=reply_html,
             disable_web_page_preview=True)
+        try:
+            with open(f'images/{purchase.id}.png', 'rb') as f:
+                context.bot.send_photo(user.id, photo=f, timeout=50)
+        except:
+            logging.log(logging.ERROR, "File not found")
 
 
 def show_tickets(update: Update, context: CallbackContext):
@@ -804,7 +822,8 @@ def main() -> None:
                 MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
                 MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
                 CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
-                MessageHandler(Filters.successful_payment, action_successful_payment_callback)
+                MessageHandler(Filters.successful_payment, action_successful_payment_callback),
+                MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket), # todo remove
             ],
             READY_DASHBOARD: [
                 MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
