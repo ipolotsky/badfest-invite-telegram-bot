@@ -19,6 +19,7 @@ from re import search
 from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.utils.types import ConversationDict
 
 from purchases import Purchase
 from tickets import Ticket
@@ -51,6 +52,7 @@ WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 10)
 
 BUTTON_JOIN_WAITING_LIST = "Join waiting list"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
+BUTTON_ADMIN_KARINA = "Карина-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
 BUTTON_ADMIN_ALL = "Все пользователи"
 BUTTON_I_HAVE_CODE = "У меня есть код"
@@ -59,6 +61,7 @@ BUTTON_INVITES = "Приглашения"
 BUTTON_TICKETS = "Билеты"
 BUTTON_MY_TICKET = "Мой билет"
 CALLBACK_BUTTON_BACK = "Realname"
+CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021'),
@@ -68,11 +71,15 @@ state_texts = dict([
     (WAITING_APPROVE, 'Ну все, теперь жди - как только модераторы тебя чекнут, тебе прилетят реферальные '
                       'ссылки, чтобы пригласить друзей, а также ты сможешь оплатить билет прямо тут.'),
     (WAITING_PAYMENT, "Хей! Тебя заапрувили! Теперь ты можешь покупать билет, а также у тебя есть две ссылки,"
-                      " по которым ты можешь пригласить друзей."),
+                      " по которым ты можешь пригласить друзей.\n"
+                      "Приглашай только тех, за кого можешь поручиться =)" \
+                      "\nИ не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
+                      "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей."),
     (WAITING_FOR_MANUAL_CODE, "Супер! Введи код, плиз:"),
     (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2021!")
 ])
 
+CONVERSATION_NAME = "user_states_conversation"
 
 # Telegram bot keyboards functions
 
@@ -85,8 +92,8 @@ def admin_keyboard(buttons=None):
 
 
 def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True):
-    convs = store.get_conversations("my_conversation")
-    state = convs.get(tuple([user.id, user.id]))
+    convs = store.get_conversations(str(CONVERSATION_NAME))
+    state = convs.get(tuple([user.id]))
 
     if buttons is None:
         buttons = []
@@ -105,7 +112,7 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
 
     key_board = ['Status', 'Info']
     if user.admin:
-        in_admin_convs = store.get_conversations("admin_conversation").get(tuple([user.id, user.id]))
+        in_admin_convs = store.get_conversations("admin_conversation").get(tuple([user.id]))
         if is_admin_in_convs and in_admin_convs:
             return admin_keyboard(buttons)
 
@@ -196,7 +203,7 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
     invite.save()
 
     context.bot.send_message(chat_id=invite.creator.id,
-                             text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое пришлашение! :)")
+                             text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое приглашение! :)")
 
     markup_buttons = []
     if user.first_name or user.last_name:
@@ -327,11 +334,12 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
 
     user.save()
 
+    update_conversation(str(CONVERSATION_NAME), user, WAITING_APPROVE)
+
     reply_text = state_texts[WAITING_APPROVE]
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(user, [
-                [str(BUTTON_I_HAVE_CODE)]] if user.status == User.STATUS_IN_WAITING_LIST_CHECKED else None),
+            get_default_keyboard_bottom(user),
             resize_keyboard=True,
             one_time_keyboard=True), disable_web_page_preview=True)
 
@@ -340,12 +348,6 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         context.bot.send_message(chat_id=admin.id, text=message, parse_mode=ParseMode.HTML)
 
     return WAITING_APPROVE
-
-
-def action_after_approval_callback(update: Update, context: CallbackContext):
-    update.callback_query.answer()
-    update.callback_query.delete_message()
-    return action_after_approval_message(update, context)
 
 
 def action_wait_code(update: Update, context: CallbackContext):
@@ -391,37 +393,13 @@ def action_enter_code(update: Update, context: CallbackContext):
     invite.save()
 
     context.bot.send_message(chat_id=invite.creator.id,
-                             text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое пришлашение! :)")
+                             text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое приглашение! :)")
 
-    update.message.reply_text("Шик! Код успешно применен!", reply_markup=ReplyKeyboardMarkup(
+    update.message.reply_text("Шик! Код успешно применен! Жди проверку модератора.", reply_markup=ReplyKeyboardMarkup(
         get_default_keyboard_bottom(user), resize_keyboard=True,
         one_time_keyboard=True), disable_web_page_preview=True)
 
     return WAITING_APPROVE
-
-
-def action_after_approval_message(update: Update, context: CallbackContext):
-    user = User.get(update.effective_user.id)
-    if user.status == User.STATUS_REJECTED:
-        update.message.reply_text("Сори, но тебя реджектнули =(")
-        return None
-
-    if user.status != User.STATUS_APPROVED:
-        show_state_text(update, context)
-        return None
-
-    context.bot.send_message(chat_id=user.id,
-                             text="Приглашай только тех, за кого можешь поручиться =)" \
-                                  "\nИ не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
-                                  "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей.",
-                             reply_markup=ReplyKeyboardMarkup(
-                                 get_default_keyboard_bottom(user, [[str(BUTTON_INVITES), str(BUTTON_TICKETS)]]),
-                                 resize_keyboard=True,
-                                 one_time_keyboard=True),
-                             disable_web_page_preview=True,
-                             parse_mode=ParseMode.HTML)
-
-    return WAITING_PAYMENT
 
 
 def action_successful_payment_callback(update: Update, context: CallbackContext) -> None:
@@ -443,14 +421,16 @@ def action_successful_payment_callback(update: Update, context: CallbackContext)
     purchase.create_image()
 
     user.status = User.STATUS_READY
+    user.purchase_id = purchase.id
     user.save()
 
+    update_conversation(str(CONVERSATION_NAME), user, READY_DASHBOARD)
+
     update.message.reply_text(state_texts[READY_DASHBOARD], reply_markup=ReplyKeyboardMarkup(
-        get_default_keyboard_bottom(user, [[str(BUTTON_INVITES), str(BUTTON_MY_TICKET)]]),
-        resize_keyboard=True,
-        one_time_keyboard=True),
+        get_default_keyboard_bottom(user), resize_keyboard=True, one_time_keyboard=True),
                               disable_web_page_preview=True,
                               parse_mode=ParseMode.HTML)
+
     reply_html = purchase.pretty_html()
     context.bot.send_message(
         user.id,
@@ -479,7 +459,7 @@ def show_invites(update: Update, context: CallbackContext):
     index = 1
 
     update.message.reply_html(
-        text="Зови друзей, пересылая пришлашения ниже:",
+        text="Зови друзей, пересылая приглашения ниже:",
         disable_web_page_preview=True)
 
     for invite in Invite.by_creator(user):
@@ -526,7 +506,7 @@ def show_tickets(update: Update, context: CallbackContext):
         prices = [LabeledPrice(ticket.id, ticket.price * 10000)]
 
         context.bot.send_invoice(
-            user.id, emojize(":label:", use_aliases=True) + ticket.id,
+            user.id, emojize(":admission_tickets:", use_aliases=True) + ticket.id,
             ticket.description, payload, provider_token, currency, prices,
             need_email=True, need_phone_number=True, max_tip_amount=100000
         )
@@ -568,8 +548,8 @@ def show_status(update: Update, context: CallbackContext) -> None:
 
 
 def show_state_text(update: Update, context: CallbackContext):
-    convs = store.get_conversations("my_conversation")
-    state = convs.get(tuple([update.effective_user.id, update.effective_user.id]))
+    convs = store.get_conversations(str(CONVERSATION_NAME))
+    state = convs.get(tuple([update.effective_user.id]))
     if state:
         update.message.reply_text(
             state_texts[state], reply_markup=ReplyKeyboardMarkup(
@@ -620,18 +600,45 @@ def admin_show_list(update: Update, context: CallbackContext):
         update.message.reply_text("Ну-ка! Куда полез!?")
         return None
 
-    index = 1
-    users = User.all()
-    reply_html = "<b>Все участники:</b> (" + str(len(users)) + ")\n"
+    if not len(context.matches):
+        update.message.reply_text("Неверная команда")
+        return None
+
+    users = []
+    if context.matches[0].string == BUTTON_ADMIN_ALL:
+        users = User.all()
+
+    if context.matches[0].string == BUTTON_ADMIN_KARINA:
+        users = User.all()# todo add filters
+
+    i = 1
     for user in users:
-        reply_html += user.pretty_html(index)
-        index += 1
+        reply_html = user.pretty_html(i)
+        markup_buttons = []
+        if not user.purchase_id and (user.status in [User.STATUS_APPROVED]):
+            markup_buttons.append([
+                InlineKeyboardButton(
+                    text='Выдать билет', callback_data=f"{str(CALLBACK_BUTTON_GIFT_TICKET)}:" + str(user.id))
+            ])
+
+        if user.purchase_id:
+            reply_html = emojize(":admission_tickets:", use_aliases=True) + " " + reply_html
+
+            purchase = Purchase.get(user.purchase_id)
+            reply_html += f"Билет: {purchase.ticket_name} {purchase.total_amount / 100} р.\n" \
+                          f"Время покупки: {purchase.created}"
+
+        update.message.reply_html(
+            text=reply_html,
+            disable_web_page_preview=True,
+            reply_markup=InlineKeyboardMarkup(markup_buttons))
+        i += 1
 
     update.message.reply_html(
-        reply_html, reply_markup=ReplyKeyboardMarkup(
+        "Всего пользователей: " + str(len(users)), reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True, )
+            one_time_keyboard=False), disable_web_page_preview=True, )
     return None
 
 
@@ -677,9 +684,56 @@ def admin_show_approval_list(update: Update, context: CallbackContext):
 
 # Admin functions:
 
+def admin_gift(update: Update, context: CallbackContext) -> None:
+    admin_user = User.get(update.effective_user.id)
+    if not admin_user or not admin_user.admin:
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text="Ну-ка! Куда полез!?", parse_mode=ParseMode.HTML)
+        return None
+
+    string_user_id = update.callback_query.data.split(':')[1]
+    user = User.get(int(string_user_id))
+
+    if not (user.status in [User.STATUS_APPROVED]):
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=f"Статус пользователя {user.status} не позволяет выдать билет.",
+                                                parse_mode=ParseMode.HTML)
+        return None
+
+    if user.purchase_id:
+        reply_text = emojize(":man_detective:",
+                             use_aliases=True) + " Возможно другой админ уже выдал билет " + user.pretty_html()
+    else:
+        purchase = Purchase.create_new_gift(admin_user)
+        purchase.user = user
+        purchase.save()
+
+        purchase.create_image()
+
+        user.status = User.STATUS_READY
+        user.purchase_id = purchase.id
+        user.save()
+
+        update_conversation(str(CONVERSATION_NAME), user, READY_DASHBOARD)
+
+        context.bot.send_message(user.id, state_texts[READY_DASHBOARD], reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user),
+            resize_keyboard=True,
+            one_time_keyboard=True),
+                                  disable_web_page_preview=True,
+                                  parse_mode=ParseMode.HTML)
+
+        reply_text = emojize(":admission_tickets:", use_aliases=True) + " БИЛЕТ ВЫДАН " + user.pretty_html()
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text=reply_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
+    return None
+
+
 def admin_approve(update: Update, context: CallbackContext) -> None:
-    user = User.get(update.effective_user.id)
-    if not user or not user.admin:
+    admin_user = User.get(update.effective_user.id)
+    if not admin_user or not admin_user.admin:
         update.callback_query.answer()
         update.callback_query.edit_message_text(text="Ну-ка! Куда полез!?", parse_mode=ParseMode.HTML)
         return None
@@ -691,20 +745,20 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
         reply_text = emojize(":man_detective:",
                              use_aliases=True) + " Возможно другой админ уже заапрувил " + user.pretty_html()
     else:
-        reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user.pretty_html()
-
         user.status = User.STATUS_APPROVED
         user.save()
         Invite.generate_invites(user)
 
+        update_conversation(str(CONVERSATION_NAME), user, WAITING_PAYMENT)
+
         # notify user about approval
         user_reply = state_texts[WAITING_PAYMENT]
         context.bot.send_message(chat_id=user.id,
-                                 reply_markup=InlineKeyboardMarkup(
-                                     [
-                                         [InlineKeyboardButton(text='Понял(a)', callback_data="approved_dashboard")]
-                                     ]),
+                                 reply_markup=ReplyKeyboardMarkup(
+                                     get_default_keyboard_bottom(user), resize_keyboard=True, one_time_keyboard=True),
                                  disable_web_page_preview=True, text=user_reply, parse_mode=ParseMode.HTML)
+
+        reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user.pretty_html()
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=reply_text, parse_mode=ParseMode.HTML)
@@ -713,8 +767,8 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
 
 
 def admin_reject(update: Update, context: CallbackContext) -> None:
-    user = User.get(update.effective_user.id)
-    if not user or not user.admin:
+    admin_user = User.get(update.effective_user.id)
+    if not admin_user or not admin_user.admin:
         update.callback_query.answer()
         update.callback_query.edit_message_text(text="Ну-ка! Куда полез!?", parse_mode=ParseMode.HTML)
         return None
@@ -722,7 +776,7 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
     string_user_id = update.callback_query.data.split(':')[1]
     user = User.get(int(string_user_id))
 
-    if not (user.status in [User.STATUS_IN_WAITING_LIST, User.STATUS_BY_REFERRAL]):
+    if not (user.status in [User.STATUS_IN_WAITING_LIST_CHECKED, User.STATUS_BY_REFERRAL_CHECKED]):
         reply_text = emojize(":face_with_symbols_on_mouth:",
                              use_aliases=True) + " Возможно другой админ уже заапрувил или отклонил " + user.pretty_html()
     else:
@@ -736,14 +790,77 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
                      " таковы правила.\nЧто теперь? Если ты считаешь это несправедливым, то напиши нам " \
                      "(контакты в разделе Инфы) и обсудим."
         context.bot.send_message(chat_id=user.id,
-                                 reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(user, None, False),
-                                                                  resize_keyboard=True),
+                                 reply_markup=ReplyKeyboardMarkup(
+                                     get_default_keyboard_bottom(user, None, False), resize_keyboard=True),
                                  disable_web_page_preview=True, text=user_reply, parse_mode=ParseMode.HTML)
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=reply_text, parse_mode=ParseMode.HTML)
 
     return None
+
+
+# Conversations
+
+conv_handler = ConversationHandler(
+        entry_points=[
+            CommandHandler('start', action_start),
+            CallbackQueryHandler(accept_invite, pattern=r'^(Accept.*$)'),
+            CallbackQueryHandler(decline_invite, pattern=r'^(Decline.*$)'),
+        ],
+        states={
+            STARTING: [
+                MessageHandler(Filters.regex(f'^{str(BUTTON_JOIN_WAITING_LIST)}'), action_join_waiting_list),
+            ],
+            WAITING_NAME: [
+                MessageHandler(
+                    Filters.text, action_set_name
+                ),
+                CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_BACK}:.*$'),
+            ],
+            WAITING_INSTA: [
+                MessageHandler(
+                    Filters.text, action_set_insta,
+                )
+            ],
+            WAITING_VK: [
+                MessageHandler(
+                    Filters.text, action_set_vk,
+                )
+            ],
+            WAITING_APPROVE: [
+                MessageHandler(Filters.regex(f'^{str(BUTTON_I_HAVE_CODE)}'), action_wait_code)
+            ],
+            WAITING_FOR_MANUAL_CODE: [
+                MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), action_back_from_manual_code),
+                MessageHandler(Filters.text, action_enter_code),
+            ],
+            WAITING_PAYMENT: [
+                MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
+                MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
+                MessageHandler(Filters.successful_payment, action_successful_payment_callback),
+                MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket), # todo remove
+            ],
+            READY_DASHBOARD: [
+                MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
+                MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),
+            ]
+        },
+        fallbacks=[],
+        name=str(CONVERSATION_NAME),
+        persistent=True,
+        per_chat=False,
+        per_message=False
+    )
+
+
+def update_conversation(conversation_name: str, user: User, state: int):
+    store.update_conversation(conversation_name, tuple([user.id]), state)
+    refresh_conversations(conv_handler)
+
+
+def refresh_conversations(handler: ConversationHandler):
+    handler.conversations = store.get_conversations(str(CONVERSATION_NAME))
 
 
 # Main endpoint
@@ -771,6 +888,7 @@ def main() -> None:
                 MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
                                admin_show_approval_list, pass_user_data=True),
                 MessageHandler(Filters.regex('^Back'), admin_action_back),
+                CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
                 CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
                 CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
             ]
@@ -780,60 +898,6 @@ def main() -> None:
         persistent=True,
     )
     dispatcher.add_handler(conv_admin_handler)
-
-    conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('start', action_start),
-            CallbackQueryHandler(accept_invite, pattern=r'^(Accept.*$)'),
-            CallbackQueryHandler(decline_invite, pattern=r'^(Decline.*$)'),
-        ],
-        states={
-            STARTING: [
-                MessageHandler(Filters.regex(f'^{str(BUTTON_JOIN_WAITING_LIST)}'), action_join_waiting_list),
-            ],
-            WAITING_NAME: [
-                MessageHandler(
-                    Filters.text, action_set_name
-                ),
-                CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_BACK}:.*$'),
-            ],
-            WAITING_INSTA: [
-                MessageHandler(
-                    Filters.text, action_set_insta,
-                )
-            ],
-            WAITING_VK: [
-                MessageHandler(
-                    Filters.text, action_set_vk,
-                )
-            ],
-            WAITING_APPROVE: [
-                MessageHandler(Filters.regex(f'^{str(BUTTON_I_HAVE_CODE)}'), action_wait_code),
-                MessageHandler(
-                    Filters.text, action_after_approval_message,
-                ),
-                CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
-            ],
-            WAITING_FOR_MANUAL_CODE: [
-                MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), action_back_from_manual_code),
-                MessageHandler(Filters.text, action_enter_code),
-            ],
-            WAITING_PAYMENT: [
-                MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
-                MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
-                CallbackQueryHandler(action_after_approval_callback, pattern=r'^approved_dashboard$'),
-                MessageHandler(Filters.successful_payment, action_successful_payment_callback),
-                MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket), # todo remove
-            ],
-            READY_DASHBOARD: [
-                MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
-                MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),
-            ]
-        },
-        fallbacks=[],
-        name="my_conversation",
-        persistent=True,
-    )
     dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(MessageHandler(Filters.text, show_state_text))
     dispatcher.add_error_handler(error_handler)

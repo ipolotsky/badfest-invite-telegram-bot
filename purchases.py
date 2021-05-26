@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from telegram import TelegramError
@@ -47,6 +48,17 @@ class Purchase:
         self._data["user"] = user.id
         self._data["user_name"] = user.real_name
         self._data["user_username"] = user.username
+
+    @property
+    def issuer(self):
+        _id = helper.safe_list_get(self._data, "issuer", None)
+        return User.get(_id) if _id else None
+
+    @issuer.setter
+    def issuer(self, issuer: User):
+        self._data["issuer"] = issuer.id
+        self._data["issuer_name"] = issuer.real_name
+        self._data["issuer_username"] = issuer.username
 
     # Currency
     @property
@@ -151,7 +163,7 @@ class Purchase:
         self._data = _data
 
     def pretty_html(self, index: int = None):
-        return f"Твой билет '{self.ticket_name}' на BadFest 2021!\n" \
+        return f"Билет '{self.ticket_name}' на BadFest 2021!\n" \
                f"Стоимость: {self.total_amount / 100}р.\n" \
                f"Дата покупки: {self.created}"
 
@@ -201,6 +213,24 @@ class Purchase:
     @staticmethod
     def exists(_id: str):
         return bool(store.purchases.child(_id).get())
+
+    @staticmethod
+    def create_new_gift(issuer: User):
+        _id = str(uuid.uuid4())
+        purchase = Purchase.create_new(_id)
+        purchase.issuer = issuer
+
+        free_tickets = Ticket.by_type(Ticket.FREE_TYPE)
+        if not free_tickets or len(free_tickets) == 0:
+            raise TelegramError("Нет бесплатных типов билетов")
+
+        ticket = free_tickets[0]
+        purchase.currency = "RUB"
+        purchase.total_amount = 0
+        purchase.ticket = ticket
+        purchase.save()
+
+        return purchase
 
     @staticmethod
     def create_new(_id: str):

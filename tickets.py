@@ -90,7 +90,7 @@ class Ticket:
 
     @staticmethod
     def create_new(_id: int):
-        if Ticket.exists(_id):
+        if Ticket.exists(str(_id)):
             raise TelegramError(f"Попытка создать билет id {_id}")
 
     @staticmethod

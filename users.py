@@ -9,7 +9,6 @@ store = FirebasePersistence()
 
 
 class User:
-
     STATUS_WELCOME = 'just_open_bot'
     STATUS_IN_WAITING_LIST = 'waiting_list'
     STATUS_IN_WAITING_LIST_CHECKED = 'waiting_list_checked'
@@ -18,6 +17,20 @@ class User:
     STATUS_APPROVED = 'approved'
     STATUS_REJECTED = 'rejected'
     STATUS_READY = 'ready'
+
+    @staticmethod
+    def status_to_pretty():
+        return dict([
+            (User.STATUS_WELCOME, "только открыл бота"),
+            (User.STATUS_IN_WAITING_LIST, "тусит в списке ожидания, но пока не указал о себе данных"),
+            (User.STATUS_IN_WAITING_LIST_CHECKED, "тусит в списке ожидания, указал данные, "
+                                                  "и его пора апрувить/реджектить"),
+            (User.STATUS_BY_REFERRAL, "зарегался по ссылке, но еще не указал данные"),
+            (User.STATUS_BY_REFERRAL_CHECKED, "зарегался по ссылке, указал данные, и его пора апрувить/реджектить"),
+            (User.STATUS_APPROVED, "подтвержден, но не оплатил билет"),
+            (User.STATUS_REJECTED, "отклонен"),
+            (User.STATUS_READY, "уже с билетом"),
+        ])
 
     def __init__(self):
         self._id = None
@@ -97,6 +110,14 @@ class User:
         self._data["vk"] = vk
 
     @property
+    def purchase_id(self):
+        return helper.safe_list_get(self._data, "purchase_id")
+
+    @purchase_id.setter
+    def purchase_id(self, purchase_id: str):
+        self._data["purchase_id"] = purchase_id
+
+    @property
     def created(self):
         timestamp = helper.safe_list_get(self._data, "created")
         if timestamp:
@@ -141,19 +162,17 @@ class User:
 
     def pretty_html(self, index: int = None):
         return "<b>{}{}</b> => {}\n" \
-                "Data: {} ({}) / <a href='tg://user?id={}'>{}</a>\n" \
-                "<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n" \
-                "{}\n\n" \
-                "\n".format(str(index) + ". " if index else "",
-                            self.real_name,
-                            self.status,
-                            self.full_name(),
-                            self.id,
-                            self.id,
-                            self.username,
-                            self.insta,
-                            self.vk,
-                            self.created)
+               "Data: {} ({}) / <a href='tg://user?id={}'>{}</a>\n" \
+               "<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n" \
+               "\n".format(str(index) + ". " if index else "",
+                             self.real_name,
+                             User.status_to_pretty()[self.status],
+                             self.full_name(),
+                             self.id,
+                             self.id,
+                             self.username,
+                             self.insta,
+                             self.vk)
 
     @staticmethod
     def get(_id: int):
@@ -197,4 +216,3 @@ class User:
     @staticmethod
     def by_status(_status: str):
         return list(filter(lambda user: user.status == _status, User.all()))
-
