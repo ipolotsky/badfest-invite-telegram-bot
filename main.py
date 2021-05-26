@@ -267,7 +267,8 @@ def action_set_name(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту'
+        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, например, https://www.instagram.com/badfestbad '
+        f'Не забудь проверить, что у тебя открытый профиль!'
     )
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
@@ -284,7 +285,7 @@ def action_set_name_callback(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту'
+        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, например, https://www.instagram.com/badfestbad'
     )
 
     update.callback_query.answer()
@@ -296,7 +297,9 @@ def action_set_name_callback(update: Update, context: CallbackContext) -> int:
 def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
     user = User.get(update.effective_user.id)
     text = update.message.text.strip()
-    if not search('instagram.com', text):
+
+    insta_link = helper.get_insta(text)
+    if not insta_link:
         replay_text = "Хах, это не инста! Давай-ка ссылку на инсту, например, https://www.instagram.com/badfestbad"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
@@ -304,10 +307,10 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
                 resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
         return None
 
-    user.insta = text
+    user.insta = insta_link
     user.save()
 
-    reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, плиз"
+    reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, например, https://vk.com/badfest/, плиз"
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user), resize_keyboard=True,
@@ -319,7 +322,9 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
 def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
     user = User.get(update.effective_user.id)
     text = update.message.text.strip()
-    if not search('vk.com', text):
+
+    vk_link = helper.get_vk(text)
+    if not vk_link:
         replay_text = "Хах, это не вк! Давай-ка ссылку на вк, например, https://vk.com/badfest/"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
@@ -327,7 +332,7 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
                 resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
         return None
 
-    user.vk = text
+    user.vk = vk_link
 
     if user.status == User.STATUS_IN_WAITING_LIST:
         user.status = User.STATUS_IN_WAITING_LIST_CHECKED
