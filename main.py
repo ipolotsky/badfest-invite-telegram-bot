@@ -81,6 +81,7 @@ state_texts = dict([
 
 CONVERSATION_NAME = "user_states_conversation"
 
+
 # Telegram bot keyboards functions
 
 def admin_keyboard(buttons=None):
@@ -226,7 +227,7 @@ def decline_invite(update: Update, context: CallbackContext) -> Optional[int]:
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text="Штош. Если передумаешь, можешь заново пройти по ссылке"
-                                                 " либо записаться в список ожидания.",
+                                                 " либо записаться в список ожидания - для этого напиши что-нибудь сюда.",
                                             disable_web_page_preview=True,
                                             parse_mode=ParseMode.HTML)
 
@@ -609,11 +610,18 @@ def admin_show_list(update: Update, context: CallbackContext):
         users = User.all()
 
     if context.matches[0].string == BUTTON_ADMIN_KARINA:
-        users = User.all()# todo add filters
+        users = User.all()  # todo add filters
 
     i = 1
+    invites = Invite.all()
     for user in users:
         reply_html = user.pretty_html(i)
+        try:
+            invite = Invite.by_participant(user, cached_invites=invites)[0]
+            reply_html += f"\nКто пригласил: {invite.creator.real_name} {invite.creator.username}"
+        except:
+            pass
+
         markup_buttons = []
         if not user.purchase_id and (user.status in [User.STATUS_APPROVED]):
             markup_buttons.append([
@@ -659,9 +667,16 @@ def admin_show_approval_list(update: Update, context: CallbackContext):
     if context.matches[0].string == BUTTON_ADMIN_CHECK_NEEDED:
         users = User.by_status(User.STATUS_BY_REFERRAL_CHECKED)
 
-    i = 1  # что это блять, Илюша?
+    i = 1
+    invites = Invite.all()
     for user in users:
         reply_html = user.pretty_html(i)
+        try:
+            invite = Invite.by_participant(user, cached_invites=invites)[0]
+            reply_html += f"\nКто пригласил: {invite.creator.real_name} {invite.creator.username}"
+        except:
+            logging.log(logging.INFO, "--")
+
         markup_buttons = [
             [
                 InlineKeyboardButton(text='Approve', callback_data="Approve:" + str(user.id)),
@@ -720,8 +735,8 @@ def admin_gift(update: Update, context: CallbackContext) -> None:
             get_default_keyboard_bottom(user),
             resize_keyboard=True,
             one_time_keyboard=True),
-                                  disable_web_page_preview=True,
-                                  parse_mode=ParseMode.HTML)
+                                 disable_web_page_preview=True,
+                                 parse_mode=ParseMode.HTML)
 
         reply_text = emojize(":admission_tickets:", use_aliases=True) + " БИЛЕТ ВЫДАН " + user.pretty_html()
 
@@ -803,55 +818,55 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
 # Conversations
 
 conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('start', action_start),
-            CallbackQueryHandler(accept_invite, pattern=r'^(Accept.*$)'),
-            CallbackQueryHandler(decline_invite, pattern=r'^(Decline.*$)'),
+    entry_points=[
+        CommandHandler('start', action_start),
+        CallbackQueryHandler(accept_invite, pattern=r'^(Accept.*$)'),
+        CallbackQueryHandler(decline_invite, pattern=r'^(Decline.*$)'),
+    ],
+    states={
+        STARTING: [
+            MessageHandler(Filters.regex(f'^{str(BUTTON_JOIN_WAITING_LIST)}'), action_join_waiting_list),
         ],
-        states={
-            STARTING: [
-                MessageHandler(Filters.regex(f'^{str(BUTTON_JOIN_WAITING_LIST)}'), action_join_waiting_list),
-            ],
-            WAITING_NAME: [
-                MessageHandler(
-                    Filters.text, action_set_name
-                ),
-                CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_BACK}:.*$'),
-            ],
-            WAITING_INSTA: [
-                MessageHandler(
-                    Filters.text, action_set_insta,
-                )
-            ],
-            WAITING_VK: [
-                MessageHandler(
-                    Filters.text, action_set_vk,
-                )
-            ],
-            WAITING_APPROVE: [
-                MessageHandler(Filters.regex(f'^{str(BUTTON_I_HAVE_CODE)}'), action_wait_code)
-            ],
-            WAITING_FOR_MANUAL_CODE: [
-                MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), action_back_from_manual_code),
-                MessageHandler(Filters.text, action_enter_code),
-            ],
-            WAITING_PAYMENT: [
-                MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
-                MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
-                MessageHandler(Filters.successful_payment, action_successful_payment_callback),
-                MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket), # todo remove
-            ],
-            READY_DASHBOARD: [
-                MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
-                MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),
-            ]
-        },
-        fallbacks=[],
-        name=str(CONVERSATION_NAME),
-        persistent=True,
-        per_chat=False,
-        per_message=False
-    )
+        WAITING_NAME: [
+            MessageHandler(
+                Filters.text, action_set_name
+            ),
+            CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_BACK}:.*$'),
+        ],
+        WAITING_INSTA: [
+            MessageHandler(
+                Filters.text, action_set_insta,
+            )
+        ],
+        WAITING_VK: [
+            MessageHandler(
+                Filters.text, action_set_vk,
+            )
+        ],
+        WAITING_APPROVE: [
+            MessageHandler(Filters.regex(f'^{str(BUTTON_I_HAVE_CODE)}'), action_wait_code)
+        ],
+        WAITING_FOR_MANUAL_CODE: [
+            MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), action_back_from_manual_code),
+            MessageHandler(Filters.text, action_enter_code),
+        ],
+        WAITING_PAYMENT: [
+            MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
+            MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
+            MessageHandler(Filters.successful_payment, action_successful_payment_callback),
+            MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),  # todo remove
+        ],
+        READY_DASHBOARD: [
+            MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
+            MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),
+        ]
+    },
+    fallbacks=[],
+    name=str(CONVERSATION_NAME),
+    persistent=True,
+    per_chat=False,
+    per_message=False
+)
 
 
 def update_conversation(conversation_name: str, user: User, state: int):

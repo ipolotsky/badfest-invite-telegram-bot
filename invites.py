@@ -79,7 +79,8 @@ class Invite:
         self._data = _data
 
     def pretty_html(self, index: int = None):
-        html = emojize(":handshake:", use_aliases=True) + f" <b>Приглашение на BadFest2021 от {self.creator.real_name}</b>\n"
+        html = emojize(":handshake:",
+                       use_aliases=True) + f" <b>Приглашение на BadFest2021 от {self.creator.real_name}</b>\n"
         if self.activated():
             html += f"Выдано и активировано <a href='tg://user?id={self.participant.id}'>{self.participant.username}</a>"
         else:
@@ -139,3 +140,10 @@ class Invite:
     @staticmethod
     def by_creator(creator: User):
         return list(filter(lambda invite: invite.creator.id == creator.id, Invite.all()))
+
+    @staticmethod
+    def by_participant(participant: User, cached_invites: list = None):
+        return list(
+            filter(lambda invite: invite.participant and str(invite.participant.id) == str(participant.id),
+                   cached_invites if cached_invites else Invite.all())
+        )
