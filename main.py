@@ -22,6 +22,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.utils.types import ConversationDict
 
 from purchases import Purchase
+from settings import Settings
 from tickets import Ticket
 from users import User
 from invites import Invite
@@ -60,6 +61,7 @@ BUTTON_BACK = "Назад"
 BUTTON_INVITES = "Приглашения"
 BUTTON_TICKETS = "Билеты"
 BUTTON_MY_TICKET = "Мой билет"
+CALLBACK_MORE_INVITES = "Moreinvites"
 CALLBACK_BUTTON_BACK = "Realname"
 CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 
@@ -463,12 +465,28 @@ def show_invites(update: Update, context: CallbackContext):
         text="Зови друзей, пересылая приглашения ниже:",
         disable_web_page_preview=True)
 
-    for invite in Invite.by_creator(user):
+    invites = Invite.by_creator(user)
+
+    for invite in invites:
         reply_html = invite.pretty_html(index)
         update.message.reply_html(
             text=reply_html,
             disable_web_page_preview=True)
         index += 1
+
+    max_invites = int(Settings.max_invites())
+    if len(invites) >= max_invites:
+        update.message.reply_html(
+            text=f"Больше приглашений на одного участника выдать не получится :(",
+            disable_web_page_preview=True)
+    else:
+        markup_buttons = [
+            [InlineKeyboardButton(text="Выдайте мне еще", callback_data=f"{CALLBACK_MORE_INVITES}")]]
+
+        update.message.reply_text(
+            text=f"Всего у тебя {len(invites)} приглашения(ий)",
+            disable_web_page_preview=True,
+            reply_markup=InlineKeyboardMarkup(markup_buttons))
 
 
 def show_my_ticket(update: Update, context: CallbackContext):
@@ -697,6 +715,42 @@ def admin_show_approval_list(update: Update, context: CallbackContext):
     return None
 
 
+# User functions:
+
+def add_more_invite(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+
+    invites = Invite.by_creator(user)
+    max_invites = int(Settings.max_invites())
+
+    if len(invites) >= max_invites:
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(
+            text="Больше приглашений на одного участника выдать не получится :(")
+        return None
+
+    invite = Invite.create_new(user)
+    update.callback_query.answer()
+    update.callback_query.delete_message()
+    context.bot.send_message(
+        user.id,
+        text=invite.pretty_html(),
+        disable_web_page_preview=True, parse_mode=ParseMode.HTML)
+
+    if len(invites) + 1 >= max_invites:
+        context.bot.send_message(user.id,
+                                 text=f"Больше приглашений на одного участника выдать не получится :(",
+                                 disable_web_page_preview=True)
+    else:
+        markup_buttons = [
+            [InlineKeyboardButton(text="Выдайте мне еще", callback_data=f"{CALLBACK_MORE_INVITES}")]]
+
+        context.bot.send_message(user.id,
+                                 text=f"Всего у тебя {len(invites) + 1} приглашения(ий)",
+                                 disable_web_page_preview=True,
+                                 reply_markup=InlineKeyboardMarkup(markup_buttons))
+
+
 # Admin functions:
 
 def admin_gift(update: Update, context: CallbackContext) -> None:
@@ -854,11 +908,12 @@ conv_handler = ConversationHandler(
             MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
             MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
             MessageHandler(Filters.successful_payment, action_successful_payment_callback),
-            MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),  # todo remove
+            CallbackQueryHandler(add_more_invite, pattern=rf'^{str(CALLBACK_MORE_INVITES)}$'),
         ],
         READY_DASHBOARD: [
             MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
             MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),
+            CallbackQueryHandler(add_more_invite, pattern=rf'^{str(CALLBACK_MORE_INVITES)}$'),
         ]
     },
     fallbacks=[],

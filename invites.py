@@ -45,6 +45,7 @@ class Invite:
     @participant.setter
     def participant(self, participant: User):
         self._data["participant"] = participant.id
+        self._data["participant_name"] = participant.real_name
 
     @property
     def created(self):
@@ -119,6 +120,7 @@ class Invite:
 
         store.invites.child(code).update({
             'creator': creator.id,
+            'creator_name': creator.real_name,
             'created': datetime.now().timestamp()
         })
 

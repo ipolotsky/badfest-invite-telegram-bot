@@ -38,6 +38,7 @@ class FirebasePersistence(BasePersistence):
         self.purchases = db.reference("purchases")
         self.tickets = db.reference("tickets")
         self.invites = db.reference("invites")
+        self.settings = db.reference("settings")
         self.fb_chat_data = db.reference("chat_data")
         self.fb_bot_data = db.reference("bot_data")
         self.fb_conversations = db.reference("conversations")
