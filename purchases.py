@@ -251,6 +251,8 @@ class Purchase:
     def all(sort: str = "created", reverse=True):
         fb_purchases = store.purchases.order_by_child(sort).get() if sort else store.purchases.get()
         fb_purchases = reversed(fb_purchases) if reverse else fb_purchases
+
+        fb_purchases = fb_purchases if fb_purchases else []
         return list(map(lambda fb_purchase: Purchase.get(fb_purchase), fb_purchases))
 
     @staticmethod

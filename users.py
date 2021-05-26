@@ -207,6 +207,8 @@ class User:
     def all(sort: str = "created", reverse=True):
         fb_users = store.users.order_by_child(sort).get() if sort else store.users.get()
         fb_users = reversed(fb_users) if reverse else fb_users
+
+        fb_users = fb_users if fb_users else []
         return list(map(lambda fb_user: User.get(fb_user), fb_users))
 
     @staticmethod

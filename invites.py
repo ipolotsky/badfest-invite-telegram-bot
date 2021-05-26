@@ -132,6 +132,8 @@ class Invite:
     @staticmethod
     def all(sort: str = "created", reverse=True):
         fb_invites = store.invites.order_by_child(sort).get() if sort else store.invites.get()
+        fb_invites = fb_invites if fb_invites else []
+
         fb_invites = reversed(fb_invites) if reverse else fb_invites
         return list(map(lambda fb_invite: Invite.get(fb_invite), fb_invites))
 

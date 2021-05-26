@@ -97,6 +97,8 @@ class Ticket:
     def all(sort: str = "order", reverse=True):
         fb_tickets = store.tickets.order_by_child(sort).get() if sort else store.tickets.get()
         fb_tickets = reversed(fb_tickets) if reverse else fb_tickets
+
+        fb_tickets = fb_tickets if fb_tickets else []
         return list(map(lambda fb_ticket: Ticket.get(fb_ticket), fb_tickets))
 
     @staticmethod
