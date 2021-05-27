@@ -1,6 +1,6 @@
 from telegram import TelegramError
 
-from fire_persistence import FirebasePersistence
+from persistence.firebase_persistence import FirebasePersistence
 from utils import helper
 
 store = FirebasePersistence()

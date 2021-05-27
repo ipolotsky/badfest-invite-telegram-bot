@@ -2,7 +2,7 @@ from datetime import datetime
 
 from telegram import TelegramError
 
-from fire_persistence import FirebasePersistence
+from persistence.firebase_persistence import FirebasePersistence
 from utils import helper
 
 store = FirebasePersistence()
@@ -52,6 +52,14 @@ class User:
     @admin.setter
     def admin(self, admin: bool):
         raise TelegramError("Нельзя устанавливать пользователя в админа")
+
+    @property
+    def god(self):
+        return helper.safe_list_get(self._data, "god", False)
+
+    @god.setter
+    def god(self, god: bool):
+        raise TelegramError("Нельзя устанавливать пользователя в бога")
 
     @property
     def status(self):
@@ -210,6 +218,10 @@ class User:
 
         fb_users = fb_users if fb_users else []
         return list(map(lambda fb_user: User.get(fb_user), fb_users))
+
+    @staticmethod
+    def gods():
+        return list(filter(lambda user: user.god, User.all()))
 
     @staticmethod
     def admins():

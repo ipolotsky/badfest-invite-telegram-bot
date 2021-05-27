@@ -1,17 +1,13 @@
-from ast import literal_eval
-from collections import defaultdict
-from typing import Dict
-
 import firebase_admin
 from firebase_admin import db
 from telegram.ext import BasePersistence
-
+from ast import literal_eval
+from collections import defaultdict
+from typing import Dict
 from settings import Settings
 
-FB_CREDS_KEY = "badfest-invites-fb-key.json"
-
 cred = firebase_admin.credentials.Certificate(Settings.fb_creds())
-app = firebase_admin.initialize_app(cred, {"databaseURL": Settings.db_url()})
+firebase_admin.initialize_app(cred, {"databaseURL": Settings.db_url()})
 
 
 class FirebasePersistence(BasePersistence):
@@ -23,7 +19,7 @@ class FirebasePersistence(BasePersistence):
 
     def __init__(self):
         # cred = firebase_admin.credentials.Certificate(credentials)
-        self.app = app
+        # self.app = app
         self.fb_user_data = db.reference("user_data")
         self.users = db.reference("users")
         self.purchases = db.reference("purchases")

@@ -9,7 +9,7 @@ from telegram.ext import (
     CallbackContext,
 )
 
-from users import User
+from models.users import User
 
 logger = logging.getLogger(__name__)
 
@@ -36,5 +36,5 @@ def error_handler(update: object, context: CallbackContext) -> None:
         f'<pre>{html.escape(tb_string)}</pre>'
     )
 
-    for admin in User.admins():
+    for admin in User.gods():
         context.bot.send_message(chat_id=admin.id, text=message, parse_mode=ParseMode.HTML)

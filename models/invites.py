@@ -3,8 +3,8 @@ import string
 from datetime import datetime
 from telegram import TelegramError
 from emoji import emojize
-from fire_persistence import FirebasePersistence
-from users import User
+from persistence.firebase_persistence import FirebasePersistence
+from models.users import User
 from utils import helper
 
 store = FirebasePersistence()

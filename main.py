@@ -1,33 +1,19 @@
 #!/usr/bin/env python
 # pylint: disable=C0116
-# This program is dedicated to the public domain under the CC0 license.
 
-"""
-First, a few callback functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-Usage:
-Example of a bot-user conversation using ConversationHandler.
-Send /start to initiate the conversation.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
 import logging
-import json
 from emoji import emojize
-from re import search
 from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.utils.types import ConversationDict
-
-from purchases import Purchase
+from models.purchases import Purchase
 from settings import Settings
-from tickets import Ticket
-from users import User
-from invites import Invite
-from error_handler import error_handler
-from fire_persistence import FirebasePersistence
+from models.tickets import Ticket
+from models.users import User
+from models.invites import Invite
+from handlers.error_handler import error_handler
+from persistence.firebase_persistence import FirebasePersistence
+from utils import helper
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -39,31 +25,20 @@ from telegram.ext import (
 )
 
 # Enable logging
-from utils import helper
-
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 
+CONVERSATION_NAME = "user_states_conversation"
+CONVERSATION_ADMIN_NAME = "admin_states_conversation"
+
+
 store = FirebasePersistence()
 
+# Conversation states
 STARTING, WAITING_NAME, WAITING_INSTA, \
 WAITING_VK, WAITING_APPROVE, WAITING_PAYMENT, \
 WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 10)
-
-BUTTON_JOIN_WAITING_LIST = "Join waiting list"
-BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
-BUTTON_ADMIN_KARINA = "Карина-кнопка"
-BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
-BUTTON_ADMIN_ALL = "Все пользователи"
-BUTTON_I_HAVE_CODE = "У меня есть код"
-BUTTON_BACK = "Назад"
-BUTTON_INVITES = "Приглашения"
-BUTTON_TICKETS = "Билеты"
-BUTTON_MY_TICKET = "Мой билет"
-CALLBACK_MORE_INVITES = "Moreinvites"
-CALLBACK_BUTTON_BACK = "Realname"
-CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021'),
@@ -81,7 +56,23 @@ state_texts = dict([
     (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2021!")
 ])
 
-CONVERSATION_NAME = "user_states_conversation"
+# Bot buttons
+
+BUTTON_JOIN_WAITING_LIST = "Кода нет, хочу в список ожидания"
+BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
+BUTTON_ADMIN_KARINA = "Карина-кнопка"
+BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
+BUTTON_ADMIN_ALL = "Все пользователи"
+BUTTON_I_HAVE_CODE = "У меня есть код"
+BUTTON_BACK = "Назад"
+BUTTON_INVITES = "Приглашения"
+BUTTON_TICKETS = "Билеты"
+BUTTON_MY_TICKET = "Мой билет"
+CALLBACK_ACCEPT_INVITE = "Accept"
+CALLBACK_DECLINE_INVITE = "Decline"
+CALLBACK_MORE_INVITES = "Moreinvites"
+CALLBACK_BUTTON_REALNAME = "Realname"
+CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 
 
 # Telegram bot keyboards functions
@@ -115,7 +106,7 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
 
     key_board = ['Status', 'Info']
     if user.admin:
-        in_admin_convs = store.get_conversations("admin_conversation").get(tuple([user.id]))
+        in_admin_convs = store.get_conversations(str(CONVERSATION_ADMIN_NAME)).get(tuple([user.id]))
         if is_admin_in_convs and in_admin_convs:
             return admin_keyboard(buttons)
 
@@ -175,8 +166,8 @@ def action_start(update: Update, context: CallbackContext) -> None:
                                   disable_web_page_preview=True)
 
         markup_buttons = [[
-            InlineKeyboardButton(text="Принять", callback_data=f"Accept:{code}"),
-            InlineKeyboardButton(text="Отклонить", callback_data=f"Decline:{code}"),
+            InlineKeyboardButton(text="Принять", callback_data=f"{str(CALLBACK_ACCEPT_INVITE)}:{code}"),
+            InlineKeyboardButton(text="Отклонить", callback_data=f"{str(CALLBACK_DECLINE_INVITE)}:{code}"),
         ]]
         update.message.reply_text(
             text=f"И принимай решение по приглашению:",
@@ -211,7 +202,7 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
     markup_buttons = []
     if user.first_name or user.last_name:
         markup_buttons = [
-            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
+            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=state_texts[WAITING_NAME],
@@ -250,7 +241,7 @@ def action_join_waiting_list(update: Update, context: CallbackContext) -> Option
     markup_buttons = []
     if user.first_name or user.last_name:
         markup_buttons = [
-            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_BACK}:{user.full_name()}")]]
+            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
 
     update.message.reply_text(
         text=state_texts[WAITING_NAME],
@@ -875,11 +866,33 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
 
 # Conversations
 
+conv_admin_handler = ConversationHandler(
+        entry_points=[MessageHandler(Filters.regex('^Admin$'), admin_action_dashboard)],
+        states={
+            ADMIN_DASHBOARD: [
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
+                               admin_show_approval_list, pass_user_data=True),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
+                               admin_show_approval_list, pass_user_data=True),
+                MessageHandler(Filters.regex('^Back'), admin_action_back),
+                CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
+                CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
+                CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
+            ]
+        },
+        fallbacks=[],
+        name=str(CONVERSATION_ADMIN_NAME),
+        persistent=True,
+        per_chat=False,
+        per_message=False
+    )
+
 conv_handler = ConversationHandler(
     entry_points=[
         CommandHandler('start', action_start),
-        CallbackQueryHandler(accept_invite, pattern=r'^(Accept.*$)'),
-        CallbackQueryHandler(decline_invite, pattern=r'^(Decline.*$)'),
+        CallbackQueryHandler(accept_invite, pattern=rf'^({str(CALLBACK_ACCEPT_INVITE)}.*$)'),
+        CallbackQueryHandler(decline_invite, pattern=rf'^({str(CALLBACK_DECLINE_INVITE)}.*$)'),
     ],
     states={
         STARTING: [
@@ -889,7 +902,7 @@ conv_handler = ConversationHandler(
             MessageHandler(
                 Filters.text, action_set_name
             ),
-            CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_BACK}:.*$'),
+            CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_REALNAME}:.*$'),
         ],
         WAITING_INSTA: [
             MessageHandler(
@@ -909,9 +922,10 @@ conv_handler = ConversationHandler(
             MessageHandler(Filters.text, action_enter_code),
         ],
         WAITING_PAYMENT: [
+            PreCheckoutQueryHandler(precheckout_callback),
+            MessageHandler(Filters.successful_payment, action_successful_payment_callback),
             MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
             MessageHandler(Filters.regex(f'^{BUTTON_TICKETS}$'), show_tickets),
-            MessageHandler(Filters.successful_payment, action_successful_payment_callback),
             CallbackQueryHandler(add_more_invite, pattern=rf'^{str(CALLBACK_MORE_INVITES)}$'),
         ],
         READY_DASHBOARD: [
@@ -940,48 +954,18 @@ def refresh_conversations(handler: ConversationHandler):
 # Main endpoint
 
 def main() -> None:
-    # Create the Updater and pass it your bot's token.
     updater = Updater(Settings.bot_token(), persistence=store)
-
-    # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    # Pre-checkout handler to final check
-    dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-
+    # Add handlers
     dispatcher.add_handler(MessageHandler(Filters.regex('^Status$'), show_status))
     dispatcher.add_handler(MessageHandler(Filters.regex('^Info'), show_info))
-
-    conv_admin_handler = ConversationHandler(
-        entry_points=[MessageHandler(Filters.regex('^Admin$'), admin_action_dashboard)],
-        states={
-            ADMIN_DASHBOARD: [
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
-                               admin_show_approval_list, pass_user_data=True),
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
-                               admin_show_approval_list, pass_user_data=True),
-                MessageHandler(Filters.regex('^Back'), admin_action_back),
-                CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
-                CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
-                CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
-            ]
-        },
-        fallbacks=[MessageHandler(Filters.regex('^Done$'), show_status)],
-        name="admin_conversation",
-        persistent=True,
-    )
     dispatcher.add_handler(conv_admin_handler)
     dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(MessageHandler(Filters.text, show_state_text))
     dispatcher.add_error_handler(error_handler)
 
-    # Start the Bot
     updater.start_polling()
-
-    # Run the bot until you press Ctrl-C or the process receives SIGINT,
-    # SIGTERM or SIGABRT. This should be used most of the time, since
-    # start_polling() is non-blocking and will stop the bot gracefully.
     updater.idle()
 
 

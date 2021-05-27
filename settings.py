@@ -7,7 +7,7 @@ class Settings:
 
     @staticmethod
     def max_invites():
-        from fire_persistence import FirebasePersistence
+        from persistence.firebase_persistence import FirebasePersistence
         settings = FirebasePersistence().settings.get()
         return helper.safe_list_get(settings, "max_invites", 5)
 
