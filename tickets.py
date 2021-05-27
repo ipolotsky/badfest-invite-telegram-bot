@@ -99,7 +99,8 @@ class Ticket:
         fb_tickets = reversed(fb_tickets) if reverse else fb_tickets
 
         fb_tickets = fb_tickets if fb_tickets else []
-        return list(map(lambda fb_ticket: Ticket.get(fb_ticket), fb_tickets))
+        return [Ticket.get(ticket) for ticket in fb_tickets]
+        # return list(map(lambda fb_ticket: Ticket.get(fb_ticket), fb_tickets))
 
     @staticmethod
     def by_type(_type: str):

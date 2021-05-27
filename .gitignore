@@ -3,3 +3,4 @@ venv
 __pycache__/
 images/*
 tmp_code.png
+badfest-invites-fb-key.json

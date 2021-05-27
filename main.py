@@ -411,7 +411,6 @@ def action_enter_code(update: Update, context: CallbackContext):
 
 
 def action_successful_payment_callback(update: Update, context: CallbackContext) -> None:
-    # successfully receiving payment 1111 1111 1111 1026, 12/22, CVC 000.
     payment = update.message.successful_payment
     user = User.get(update.effective_user.id)
 
@@ -698,7 +697,7 @@ def admin_show_approval_list(update: Update, context: CallbackContext):
             invite = Invite.by_participant(user, cached_invites=invites)[0]
             reply_html += f"\nКто пригласил: {invite.creator.real_name} {invite.creator.username}"
         except:
-            logging.log(logging.INFO, "--")
+            pass
 
         markup_buttons = [
             [
@@ -942,7 +941,7 @@ def refresh_conversations(handler: ConversationHandler):
 
 def main() -> None:
     # Create the Updater and pass it your bot's token.
-    updater = Updater("1729903490:AAERypw3yDXPCK4ikqKsc8um7NOHBXj5gBc", persistence=store)
+    updater = Updater(Settings.bot_token(), persistence=store)
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher

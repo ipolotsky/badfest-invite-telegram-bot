@@ -182,9 +182,9 @@ class Purchase:
         # get text img
         text_img = Image.new('RGB', (ticket_width, 420), color=(255, 218, 0))
         d = ImageDraw.Draw(text_img)
-        master_font = ImageFont.FreeTypeFont('HelveticaBlack.ttf', 60, encoding="utf-8")
+        master_font = ImageFont.FreeTypeFont('fonts/HelveticaBlack.ttf', 60, encoding="utf-8")
         d.text((50, 50), "BadFest 2021 / 26-27 июня", fill=(0, 0, 0), font=master_font)
-        slave_font = ImageFont.FreeTypeFont('arial.ttf', 40, encoding="utf-8")
+        slave_font = ImageFont.FreeTypeFont('fonts/arial.ttf', 40, encoding="utf-8")
         d.text((60, 130), 'Имя: ' + self.user.real_name, fill=(0, 0, 0), font=slave_font)
         d.text((60, 180), 'Тип: ' + self.ticket_name, fill=(0, 0, 0), font=slave_font)
         d.text((60, 230), 'Стоимость: ' + str(self.total_amount / 100) + ' рублей', fill=(0, 0, 0), font=slave_font)
