@@ -65,6 +65,7 @@ state_texts = dict([
 
 BUTTON_JOIN_WAITING_LIST = "Кода нет, хочу в список ожидания"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
+BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
 BUTTON_ADMIN_ALL = "Все пользователи"
@@ -87,7 +88,7 @@ def admin_keyboard(buttons=None):
     if buttons is None:
         buttons = []
     buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST)])
-    buttons.append([str(BUTTON_ADMIN_ALL), 'Back'])
+    buttons.append([str(BUTTON_ADMIN_ALL), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
     return buttons
 
 
@@ -412,20 +413,20 @@ def action_successful_payment_callback(update: Update, context: CallbackContext)
 
     try:
         Ticket.get(payment.invoice_payload)
-        return process_successfull_ticket(update, context)
+        return process_successful_ticket(update, context)
     except:
         pass
 
     try:
         Merch.get(payment.invoice_payload)
-        return process_successfull_merch(update, context)
+        return process_successful_merch(update, context)
     except:
         pass
 
     raise TelegramError(f"Пришла оплата на хер пойми что: {str(payment)}")
 
 
-def process_successfull_ticket(update: Update, context: CallbackContext):
+def process_successful_ticket(update: Update, context: CallbackContext):
     payment = update.message.successful_payment
     user = User.get(update.effective_user.id)
 
@@ -469,7 +470,7 @@ def process_successfull_ticket(update: Update, context: CallbackContext):
     return READY_DASHBOARD
 
 
-def process_successfull_merch(update: Update, context: CallbackContext) -> None:
+def process_successful_merch(update: Update, context: CallbackContext) -> None:
     payment = update.message.successful_payment
 
     purchase = MerchPurchase.create_new(update.message.successful_payment.provider_payment_charge_id)
@@ -782,6 +783,34 @@ def admin_show_list(update: Update, context: CallbackContext):
     return None
 
 
+def admin_show_merch_list(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    i = 1
+    total_amount = 0
+    merchs = MerchPurchase.all()
+    for merch in merchs:
+        total_amount += merch.total_amount
+        reply_html = merch.admin_pretty_html(i)
+        update.message.reply_html(
+            text=reply_html,
+            disable_web_page_preview=True)
+        i += 1
+
+    stats = f"Всего мерча: {str(len(merchs))}\n" \
+            f"Всего денег: {str(total_amount / 100)} р."
+
+    update.message.reply_html(
+        stats, reply_markup=ReplyKeyboardMarkup(
+            admin_keyboard(),
+            resize_keyboard=True,
+            one_time_keyboard=False), disable_web_page_preview=True, )
+    return None
+
+
 def admin_show_approval_list(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
@@ -992,9 +1021,10 @@ conv_admin_handler = ConversationHandler(
                 MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
                 MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
                                admin_show_approval_list, pass_user_data=True),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_MERCH)}$'), admin_show_merch_list),
                 MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
                                admin_show_approval_list, pass_user_data=True),
-                MessageHandler(Filters.regex('^Back'), admin_action_back),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_BACK)}$'), admin_action_back),
                 CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
                 CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
                 CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),

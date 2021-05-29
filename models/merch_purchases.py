@@ -60,6 +60,13 @@ class MerchPurchase(BasePurchase):
                f"Стоимость: {self.total_amount / 100}р.\n" \
                f"Дата покупки: {self.created}"
 
+    def admin_pretty_html(self, index: int = None):
+        return (f"{str(index)}." if index else "") + emojize(":fire:", use_aliases=True) + \
+               f"'{self.merch_name}' для <a href='tg://user?id={self.user_id}'>{self.customer_name}</a>\n" \
+               f"Тел: {self.phone_number} / email: {self.email} cтоимость: {self.total_amount / 100}р.\n" \
+               f"Дата покупки: {self.created}"
+
+
     @staticmethod
     def by_user_id(user_id: int):
         return list(filter(lambda purchase: purchase.user_id == user_id, MerchPurchase.all()))
