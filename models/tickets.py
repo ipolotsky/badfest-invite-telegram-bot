@@ -1,7 +1,7 @@
 from firebase_admin.db import Reference
 from telegram import TelegramError
 
-from models.base_goods import BaseProduct
+from models.base_products import BaseProduct
 from persistence.firebase_persistence import FirebasePersistence
 from utils import helper
 

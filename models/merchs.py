@@ -1,5 +1,5 @@
 from firebase_admin.db import Reference
-from models.base_goods import BaseProduct
+from models.base_products import BaseProduct
 from persistence.firebase_persistence import FirebasePersistence
 
 store = FirebasePersistence()

@@ -10,7 +10,7 @@ from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, Repl
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from models.merchs import Merch
-from models.purchases import TicketPurchase
+from models.ticket_purchases import TicketPurchase
 from settings import Settings
 from models.tickets import Ticket
 from models.users import User
