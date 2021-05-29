@@ -570,6 +570,18 @@ def show_merch(update: Update, context: CallbackContext):
 
         index += 1
 
+    merchs = MerchPurchase.by_user_id(update.effective_user.id)
+    if len(merchs) > 0:
+        update.message.reply_html(
+            text="А это то, что ты уже купил(а):\n\n ",
+            disable_web_page_preview=True)
+
+        for merch in merchs:
+            reply_html = merch.pretty_html()
+            update.message.reply_html(
+                text=reply_html,
+                disable_web_page_preview=True)
+
 
 def show_tickets(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
