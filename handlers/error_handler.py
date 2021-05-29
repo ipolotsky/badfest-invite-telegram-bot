@@ -32,7 +32,7 @@ def error_handler(update: object, context: CallbackContext) -> None:
     try:
         user_data = html.escape(str(User.get(update.effective_user.id).tech_data()))
     except:
-        user_data = html.escape(str(update.effective_user.id))
+        pass
 
     message = (
         f'An exception was raised while handling an update\n'

@@ -440,13 +440,13 @@ def action_successful_payment_callback(update: Update, context: CallbackContext)
         Ticket.get(payment.invoice_payload)
         return process_successful_ticket(update, context)
     except:
-        pass
+        logging.exception("Failed to pay ticket")
 
     try:
         Merch.get(payment.invoice_payload)
         return process_successful_merch(update, context)
     except:
-        pass
+        logging.exception("Failed to pay merch")
 
     raise TelegramError(f"Пришла оплата на хер пойми что: {str(payment)}")
 
