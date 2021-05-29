@@ -22,9 +22,13 @@ class FirebasePersistence(BasePersistence):
         # self.app = app
         self.fb_user_data = db.reference("user_data")
         self.users = db.reference("users")
-        self.purchases = db.reference("purchases")
+
+        self.purchases = db.reference("ticket_purchases")
         self.tickets = db.reference("tickets")
+
+        self.merch_purchases = db.reference("merch_purchases")
         self.merch = db.reference("merch")
+
         self.invites = db.reference("invites")
         self.settings = db.reference("settings")
         self.fb_chat_data = db.reference("chat_data")

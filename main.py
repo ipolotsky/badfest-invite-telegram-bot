@@ -9,6 +9,7 @@ from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from models.merch_purchases import MerchPurchase
 from models.merchs import Merch
 from models.ticket_purchases import TicketPurchase
 from settings import Settings
@@ -42,7 +43,7 @@ store = FirebasePersistence()
 # Conversation states
 STARTING, WAITING_NAME, WAITING_INSTA, \
 WAITING_VK, WAITING_APPROVE, WAITING_PAYMENT, \
-WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD, MERCH_DASHBOARD = range(1, 11)
+WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 10)
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021'),
@@ -58,7 +59,6 @@ state_texts = dict([
                       "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей."),
     (WAITING_FOR_MANUAL_CODE, "Супер! Введи код, плиз:"),
     (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2021!"),
-    (MERCH_DASHBOARD, "Выбирай и заказывай мерч, который захочешь! Можешь делать это безгранично!")
 ])
 
 # Bot buttons
@@ -166,7 +166,7 @@ def action_start(update: Update, context: CallbackContext) -> None:
         reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n" \
                      f"Почитай информацию по кнопке Info внизу."
         update.message.reply_text(reply_text,
-                                  reply_markup=ReplyKeyboardMarkup([['Info']],
+                                  reply_markup=ReplyKeyboardMarkup([['Info', str(BUTTON_MERCH)]],
                                                                    resize_keyboard=True,
                                                                    one_time_keyboard=True),
                                   disable_web_page_preview=True)
@@ -409,49 +409,23 @@ def action_enter_code(update: Update, context: CallbackContext):
 
 def action_successful_payment_callback(update: Update, context: CallbackContext) -> None:
     payment = update.message.successful_payment
-    user = User.get(update.effective_user.id)
-
-    purchase = TicketPurchase.create_new(update.message.successful_payment.provider_payment_charge_id)
-    purchase.currency = payment.currency
-    purchase.total_amount = payment.total_amount
-    purchase.set_ticket_info(Ticket.get(payment.invoice_payload))
-    purchase.user = user
-    purchase.phone_number = helper.safe_list_get(payment.order_info, "phone_number")
-    purchase.email = helper.safe_list_get(payment.order_info, "email")
-    purchase.customer_name = helper.safe_list_get(payment.order_info, "name")
-    purchase.telegram_payment_charge_id = payment.telegram_payment_charge_id
-    purchase.provider_payment_charge_id = payment.provider_payment_charge_id
-    purchase.save()
-
-    purchase.create_image()
-
-    user.status = User.STATUS_READY
-    user.purchase_id = purchase.id
-    user.save()
-
-    update_conversation(str(CONVERSATION_NAME), user, READY_DASHBOARD)
-
-    update.message.reply_text(state_texts[READY_DASHBOARD], reply_markup=ReplyKeyboardMarkup(
-        get_default_keyboard_bottom(user), resize_keyboard=True, one_time_keyboard=True),
-                              disable_web_page_preview=True,
-                              parse_mode=ParseMode.HTML)
-
-    reply_html = purchase.pretty_html()
-    context.bot.send_message(
-        user.id,
-        text=reply_html,
-        disable_web_page_preview=True)
 
     try:
-        with open(f'images/{purchase.id}.png', 'rb') as f:
-            context.bot.send_photo(user.id, photo=f, timeout=50)
+        Ticket.get(payment.invoice_payload)
+        return process_successfull_ticket(update, context)
     except:
-        logging.log(logging.ERROR, "File not found")
+        pass
 
-    return READY_DASHBOARD
+    try:
+        Merch.get(payment.invoice_payload)
+        return process_successfull_merch(update, context)
+    except:
+        pass
+
+    raise TelegramError(f"Пришла оплата на хер пойми что: {str(payment)}")
 
 
-def action_successful_merch_payment_callback(update: Update, context: CallbackContext) -> None:
+def process_successfull_ticket(update: Update, context: CallbackContext):
     payment = update.message.successful_payment
     user = User.get(update.effective_user.id)
 
@@ -493,6 +467,28 @@ def action_successful_merch_payment_callback(update: Update, context: CallbackCo
         logging.log(logging.ERROR, "File not found")
 
     return READY_DASHBOARD
+
+
+def process_successfull_merch(update: Update, context: CallbackContext) -> None:
+    payment = update.message.successful_payment
+
+    purchase = MerchPurchase.create_new(update.message.successful_payment.provider_payment_charge_id)
+    purchase.currency = payment.currency
+    purchase.total_amount = payment.total_amount
+    purchase.set_merch_info(Merch.get(payment.invoice_payload))
+    purchase.user_id = update.effective_user.id
+    purchase.phone_number = helper.safe_list_get(payment.order_info, "phone_number")
+    purchase.email = helper.safe_list_get(payment.order_info, "email")
+    purchase.customer_name = helper.safe_list_get(payment.order_info, "name")
+    purchase.telegram_payment_charge_id = payment.telegram_payment_charge_id
+    purchase.provider_payment_charge_id = payment.provider_payment_charge_id
+    purchase.save()
+
+    reply_html = purchase.pretty_html()
+    context.bot.send_message(
+        update.effective_user.id,
+        text=reply_html,
+        disable_web_page_preview=True)
 
 
 # User show data functions:
@@ -550,8 +546,6 @@ def show_my_ticket(update: Update, context: CallbackContext):
 
 
 def show_merch(update: Update, context: CallbackContext):
-    user = User.get(update.effective_user.id)
-
     index = 1
     update.message.reply_html(
         text="Выбирай мерч и покупай прямо тут в телеграме (да, так уже можно, начиная с апреля этого года)\n"
@@ -567,7 +561,7 @@ def show_merch(update: Update, context: CallbackContext):
         prices = [LabeledPrice(merch.id, merch.price * 100)]
 
         context.bot.send_invoice(
-            chat_id=user.id, title=emojize(":penguin:", use_aliases=True) + merch.id,
+            chat_id=update.effective_user.id, title=emojize(":penguin:", use_aliases=True) + merch.id,
             description=merch.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
             photo_url=merch.photo, photo_width=300, photo_height=300, need_name=True,
@@ -615,39 +609,57 @@ def precheckout_callback(update: Update, _: CallbackContext) -> None:
         query.answer(ok=False, error_message=f"Payload какой-то не такой... пустой, нет его")
         return None
 
-    try:
-        Ticket.get(query.invoice_payload)
-    except:
-        query.answer(ok=False, error_message=f"Нет билета с таким id:{query.invoice_payload}")
-        return None
+    ticket = None
+    merch = None
+    error_text = ""
 
     try:
-        user = User.get(query.from_user.id)
-        if user.status != User.STATUS_APPROVED:
-            query.answer(ok=False, error_message=f"Так так... Пользователь {user.real_name} с id {user.id} "
-                                                 f"и статусом {user.status} не подтвержден для покупки.")
+        ticket = Ticket.get(query.invoice_payload)
+    except:
+        # query.answer(ok=False, error_message=f"Нет билета с таким id:{query.invoice_payload}")
+        error_text = f"Нет билета с таким id:{query.invoice_payload}"
+
+    try:
+        merch = Merch.get(query.invoice_payload)
+    except:
+        # query.answer(ok=False, error_message=f"Нет билета с таким id:{query.invoice_payload}")
+        error_text = f"Нет мерча с таким id:{query.invoice_payload}"
+
+    if (not ticket) and (not merch):
+        query.answer(ok=False, error_message=error_text)
+        return None
+
+    if ticket:
+        try:
+            user = User.get(query.from_user.id)
+            if user.status != User.STATUS_APPROVED:
+                query.answer(ok=False, error_message=f"Так так... Пользователь {user.real_name} с id {user.id} "
+                                                     f"и статусом {user.status} не подтвержден для покупки.")
+                return None
+        except:
+            # answer False pre_checkout_query
+            query.answer(ok=False, error_message=f"Нет пользователя с таким id:{query.from_user.id}")
             return None
-    except:
-        # answer False pre_checkout_query
-        query.answer(ok=False, error_message=f"Нет пользователя с таким id:{query.from_user.id}")
-        return None
 
     query.answer(ok=True)
 
-def precheckout_merch_callback(update: Update, _: CallbackContext) -> None:
-    query = update.pre_checkout_query
 
-    if not query.invoice_payload:
-        query.answer(ok=False, error_message=f"Payload какой-то не такой... пустой, нет его")
-        return None
-
-    try:
-        Merch.get(query.invoice_payload)
-    except:
-        query.answer(ok=False, error_message=f"Нет мерча с таким id:{query.invoice_payload}")
-        return None
-
-    query.answer(ok=True)
+# def precheckout_merch_callback(update: Update, _: CallbackContext) -> None:
+#     query = update.pre_checkout_query
+#     query.answer(ok=True)
+#     return None
+#
+#     if not query.invoice_payload:
+#         query.answer(ok=False, error_message=f"Payload какой-то не такой... пустой, нет его")
+#         return None
+#
+#     try:
+#         Merch.get(query.invoice_payload)
+#     except:
+#         query.answer(ok=False, error_message=f"Нет мерча с таким id:{query.invoice_payload}")
+#         return None
+#
+#     query.answer(ok=True)
 
 
 def show_status(update: Update, context: CallbackContext) -> None:
@@ -1029,11 +1041,7 @@ conv_handler = ConversationHandler(
             CallbackQueryHandler(add_more_invite, pattern=rf'^{str(CALLBACK_MORE_INVITES)}$'),
         ]
     },
-    fallbacks=[
-        MessageHandler(Filters.regex(f'^{BUTTON_MERCH}$'), show_merch),
-        PreCheckoutQueryHandler(precheckout_merch_callback),
-        MessageHandler(Filters.successful_payment, action_successful_merch_payment_callback),
-    ],
+    fallbacks=[],
     name=str(CONVERSATION_NAME),
     persistent=True,
     per_chat=False,
@@ -1059,8 +1067,13 @@ def main() -> None:
     # Add handlers
     dispatcher.add_handler(MessageHandler(Filters.regex('^Status$'), show_status))
     dispatcher.add_handler(MessageHandler(Filters.regex('^Info'), show_info))
+    dispatcher.add_handler(MessageHandler(Filters.regex(f'^{BUTTON_MERCH}$'), show_merch))
+
     dispatcher.add_handler(conv_admin_handler)
     dispatcher.add_handler(conv_handler)
+
+    dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    dispatcher.add_handler(MessageHandler(Filters.successful_payment, action_successful_payment_callback))
     dispatcher.add_handler(MessageHandler(Filters.text, show_state_text))
     dispatcher.add_error_handler(error_handler)
 

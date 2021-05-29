@@ -35,7 +35,7 @@ class TicketPurchase(BasePurchase):
 
     @ticket_base_price.setter
     def ticket_base_price(self, ticket_base_price: str):
-        raise TelegramError("Direct setter for ticket_base_price name is denied")
+        raise TelegramError("Direct setter for ticket_base_price is denied")
 
     @property
     def ticket_description(self):
@@ -43,7 +43,7 @@ class TicketPurchase(BasePurchase):
 
     @ticket_description.setter
     def ticket_description(self, ticket_description: str):
-        raise TelegramError("Direct setter for ticket_description name is denied")
+        raise TelegramError("Direct setter for ticket_description is denied")
 
     @property
     def user(self):

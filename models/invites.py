@@ -62,7 +62,10 @@ class Invite:
         store.invites.child(str(self._id)).update(self._data)
 
     def activated(self):
-        return bool(self.participant)
+        try:
+            return self.participant
+        except:
+            return False
 
     def tech_data(self):
         return self._data
