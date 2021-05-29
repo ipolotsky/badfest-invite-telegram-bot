@@ -492,6 +492,11 @@ def process_successful_ticket(update: Update, context: CallbackContext):
     except:
         logging.log(logging.ERROR, "File not found")
 
+    for admin in User.admins():
+        message = emojize(":money_bag:", use_aliases=True) + f" {user.real_name} ({user.username})" \
+                                                                         f" купил(а) билет '{purchase.ticket_name}' за {purchase.total_amount / 100} р."
+        context.bot.send_message(chat_id=admin.id, text=message)
+
     return READY_DASHBOARD
 
 
@@ -515,6 +520,12 @@ def process_successful_merch(update: Update, context: CallbackContext) -> None:
         update.effective_user.id,
         text=reply_html,
         disable_web_page_preview=True)
+
+    for admin in User.admins():
+        message = emojize(":fire:", use_aliases=True) + \
+                  f"  <a href='tg://user?id={purchase.user_id}'>{purchase.customer_name}</a>" \
+                  f" купил(а) мерч '{purchase.merch_name}' за {purchase.total_amount / 100} р."
+        context.bot.send_message(chat_id=admin.id, text=message, parse_mode=ParseMode.HTML)
 
 
 # User show data functions:
