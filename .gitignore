@@ -2,6 +2,7 @@ venv
 .idea
 __pycache__/
 images/*
+!images/.gitkeep
 tmp_code.png
 badfest-invites-fb-key.json
 poetry.lock
