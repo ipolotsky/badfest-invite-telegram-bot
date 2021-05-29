@@ -1,24 +1,19 @@
 from firebase_admin.db import Reference
-from telegram import TelegramError
-
 from models.base_goods import BaseProduct
 from persistence.firebase_persistence import FirebasePersistence
-from utils import helper
 
 store = FirebasePersistence()
 
 
-class Ticket(BaseProduct):
+class Merch(BaseProduct):
 
-    PAID_TYPE = "paid"
-    FREE_TYPE = "free"
+    ACTIVE_TYPE = "active"
+    ARCHIVE_TYPE = "archive"
 
     @classmethod
     def ref(cls) -> Reference:
-        return store.tickets
-
-    # Functions
+        return store.merch
 
     @staticmethod
     def by_type(_type: str):
-        return list(filter(lambda ticket: ticket.type == _type, Ticket.all()))
+        return list(filter(lambda merch: merch.type == _type, Merch.all()))

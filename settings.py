@@ -13,9 +13,6 @@ class Settings:
 
     @staticmethod
     def fb_creds():
-        # from fire_persistence import FB_CREDS_KEY
-        # with open(FB_CREDS_KEY) as json_file:
-        #     return json.load(json_file)
         return json.loads(str(os.environ["FB_CREDS"]))
 
     @staticmethod
@@ -25,3 +22,7 @@ class Settings:
     @staticmethod
     def bot_token():
         return os.environ["BAD_BAR_BOT_TOKEN"]
+
+    @staticmethod
+    def provider_token():
+        return os.environ["BOT_PAYMENT_PROVIDER_TOKEN"]
