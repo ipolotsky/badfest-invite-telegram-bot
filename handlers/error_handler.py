@@ -34,7 +34,6 @@ def error_handler(update: object, context: CallbackContext) -> None:
     except:
         user_data = html.escape(str(update.effective_user.id))
 
-
     message = (
         f'An exception was raised while handling an update\n'
         f'<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}'

@@ -82,9 +82,9 @@ class TicketPurchase(BasePurchase):
     def create_image(self):
         # generate qr
         big_code = pyqrcode.create(self.id)
-        big_code.png('../tmp_code.png', scale=20, module_color=[0, 0, 0, 128], background=(255, 255, 255))
+        big_code.png('tmp_code.png', scale=20, module_color=[0, 0, 0, 128], background=(255, 255, 255))
 
-        qr = Image.open("../tmp_code.png")
+        qr = Image.open("tmp_code.png")
         ticket_width = qr.width + 60
 
         # get qr img

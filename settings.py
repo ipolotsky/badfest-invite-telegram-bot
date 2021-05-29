@@ -13,7 +13,8 @@ class Settings:
 
     @staticmethod
     def fb_creds():
-        return json.loads(str(os.environ["FB_CREDS"]))
+        with open("FB_CREDS.json") as file:
+            return json.load(file)
 
     @staticmethod
     def db_url():
