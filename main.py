@@ -70,6 +70,7 @@ BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
 BUTTON_ADMIN_ALL = "Все пользователи"
+BUTTON_ADMIN_ART_REQUESTS = "Карина"
 BUTTON_I_HAVE_CODE = "У меня есть код"
 BUTTON_BACK = "Назад"
 BUTTON_INVITES = "Приглашения"
@@ -90,8 +91,8 @@ CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 def admin_keyboard(buttons=None):
     if buttons is None:
         buttons = []
-    buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST)])
-    buttons.append([str(BUTTON_ADMIN_ALL), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
+    buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST), str(BUTTON_ADMIN_ALL)])
+    buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
     return buttons
 
 
@@ -789,6 +790,31 @@ def admin_show_list(update: Update, context: CallbackContext):
     return None
 
 
+def admin_show_art_requests(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    i = 1
+    art_requests = ArtRequest.all()
+    for a_request in art_requests:
+        reply_html = a_request.pretty_html(i)
+        update.message.reply_html(
+            text=reply_html,
+            disable_web_page_preview=True)
+        i += 1
+
+    stats = f"Всего заявок: {str(len(art_requests))}"
+
+    update.message.reply_html(
+        stats, reply_markup=ReplyKeyboardMarkup(
+            admin_keyboard(),
+            resize_keyboard=True,
+            one_time_keyboard=False), disable_web_page_preview=True)
+    return None
+
+
 def admin_show_merch_list(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
@@ -1042,6 +1068,7 @@ conv_admin_handler = ConversationHandler(
                 MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
                                admin_show_approval_list, pass_user_data=True),
                 MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_MERCH)}$'), admin_show_merch_list),
+                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ART_REQUESTS)}$'), admin_show_art_requests),
                 MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
                                admin_show_approval_list, pass_user_data=True),
                 MessageHandler(Filters.regex(f'^{str(BUTTON_BACK)}$'), admin_action_back),
