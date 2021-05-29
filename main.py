@@ -9,6 +9,7 @@ from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from models.art_requests import ArtRequest
 from models.merch_purchases import MerchPurchase
 from models.merchs import Merch
 from models.ticket_purchases import TicketPurchase
@@ -75,9 +76,11 @@ BUTTON_INVITES = "Приглашения"
 BUTTON_TICKETS = "Билеты"
 BUTTON_MY_TICKET = "Мой билет"
 BUTTON_MERCH = "Мерч"
+BUTTON_REQUEST_FOR_ART = "Хочу делать арт-объект"
 CALLBACK_ACCEPT_INVITE = "Accept"
 CALLBACK_DECLINE_INVITE = "Decline"
 CALLBACK_MORE_INVITES = "Moreinvites"
+CALLBACK_ART_REQUEST = "ArtRequest"
 CALLBACK_BUTTON_REALNAME = "Realname"
 CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 
@@ -109,7 +112,7 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
         buttons.append([str(BUTTON_INVITES), str(BUTTON_TICKETS)])
 
     if state in [READY_DASHBOARD]:
-        buttons.append([str(BUTTON_INVITES), str(BUTTON_MY_TICKET)])
+        buttons.append([str(BUTTON_INVITES), str(BUTTON_MY_TICKET), str(BUTTON_REQUEST_FOR_ART)])
 
     key_board = ['Status', 'Info', str(BUTTON_MERCH)]
     if user.admin:
@@ -354,6 +357,27 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         context.bot.send_message(chat_id=admin.id, text=message, parse_mode=ParseMode.HTML)
 
     return WAITING_APPROVE
+
+
+def action_request_for_art(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    try:
+        art_request = ArtRequest.by_creator(user)[0]
+        update.message.reply_text(
+            f"Ты уже подал(а) заявку на арт-объект {art_request.created}",
+            reply_markup=ReplyKeyboardRemove(), disable_web_page_preview=True)
+        return None
+    except:
+        pass
+
+    reply_text = f"Здесь текст о том, как круто строить объекты и получать за это радости"
+    markup_buttons = [
+        [InlineKeyboardButton(text="Подать заявку на объект", callback_data=f"{CALLBACK_ART_REQUEST}:{user.id}")]]
+
+    update.message.reply_text(
+        text=reply_text,
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(markup_buttons))
 
 
 def action_wait_code(update: Update, context: CallbackContext):
@@ -657,24 +681,6 @@ def precheckout_callback(update: Update, _: CallbackContext) -> None:
     query.answer(ok=True)
 
 
-# def precheckout_merch_callback(update: Update, _: CallbackContext) -> None:
-#     query = update.pre_checkout_query
-#     query.answer(ok=True)
-#     return None
-#
-#     if not query.invoice_payload:
-#         query.answer(ok=False, error_message=f"Payload какой-то не такой... пустой, нет его")
-#         return None
-#
-#     try:
-#         Merch.get(query.invoice_payload)
-#     except:
-#         query.answer(ok=False, error_message=f"Нет мерча с таким id:{query.invoice_payload}")
-#         return None
-#
-#     query.answer(ok=True)
-
-
 def show_status(update: Update, context: CallbackContext) -> None:
     update.message.reply_html(
         f"Все, что знаем о тебе\n\n{User.get(update.effective_user.id).pretty_html()}"
@@ -859,6 +865,20 @@ def admin_show_approval_list(update: Update, context: CallbackContext):
 
 
 # User functions:
+
+def art_request(update: Update, context: CallbackContext) -> None:
+    string_user_id = update.callback_query.data.split(':')[1]
+    user = User.get(int(string_user_id))
+
+    ArtRequest.create_new(user)
+    update.callback_query.answer()
+    update.callback_query.edit_message_text("Отлично! С тобой свяжутся организаторы. Прибывай в ожидании!")
+
+    for admin in User.admins():
+        message = emojize(":building_construction:", use_aliases=True) + f" {user.real_name} ({user.username})" \
+                                                                         f" подал(a) заявку на арт-объект"
+        context.bot.send_message(chat_id=admin.id, text=message)
+
 
 def add_more_invite(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
@@ -1080,7 +1100,9 @@ conv_handler = ConversationHandler(
         READY_DASHBOARD: [
             MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
             MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),
+            MessageHandler(Filters.regex(f'^{BUTTON_REQUEST_FOR_ART}$'), action_request_for_art),
             CallbackQueryHandler(add_more_invite, pattern=rf'^{str(CALLBACK_MORE_INVITES)}$'),
+            CallbackQueryHandler(art_request, pattern=rf'^({str(CALLBACK_ART_REQUEST)}.*$)'),
         ]
     },
     fallbacks=[],

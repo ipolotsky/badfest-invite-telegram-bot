@@ -30,6 +30,7 @@ class FirebasePersistence(BasePersistence):
         self.merch = db.reference("merch")
 
         self.invites = db.reference("invites")
+        self.art_requests = db.reference("art_requests")
         self.settings = db.reference("settings")
         self.fb_chat_data = db.reference("chat_data")
         self.fb_bot_data = db.reference("bot_data")
@@ -39,12 +40,6 @@ class FirebasePersistence(BasePersistence):
             store_chat_data=False,
             store_bot_data=False,
         )
-
-    # @classmethod
-    # def from_environment(cls, **kwargs):
-    #     credentials = json.loads(os.environ["FIREBASE_CREDENTIALS"])
-    #     database_url = os.environ["FIREBASE_URL"]
-    #     return cls(database_url=database_url, credentials=credentials, **kwargs)
 
     def get_user_data(self):
         data = self.fb_user_data.get() or {}
