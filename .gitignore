@@ -6,5 +6,6 @@ images/*
 tmp_code.png
 badfest-invites-fb-key.json
 poetry.lock
+FB_CREDS_TEST.json
 FB_CREDS.json
 .env

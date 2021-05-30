@@ -171,7 +171,7 @@ def action_start(update: Update, context: CallbackContext) -> None:
         reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n" \
                      f"Почитай информацию по кнопке Info внизу."
         update.message.reply_text(reply_text,
-                                  reply_markup=ReplyKeyboardMarkup([['Info', str(BUTTON_MERCH)]],
+                                  reply_markup=ReplyKeyboardMarkup([[str(BUTTON_MERCH)]],
                                                                    resize_keyboard=True,
                                                                    one_time_keyboard=True),
                                   disable_web_page_preview=True)
@@ -269,8 +269,8 @@ def action_set_name(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, например, https://www.instagram.com/badfestbad '
-        f'Не забудь проверить, что у тебя открытый профиль!'
+        f"Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, "
+        f"например, https://www.instagram.com/badfestbad Не забудь проверить, что у тебя открытый профиль!"
     )
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
@@ -439,15 +439,12 @@ def action_successful_payment_callback(update: Update, context: CallbackContext)
         Ticket.get(payment.invoice_payload)
         return process_successful_ticket(update, context)
     except:
-        logging.exception("Failed to pay ticket")
-
-    try:
-        Merch.get(payment.invoice_payload)
-        return process_successful_merch(update, context)
-    except:
-        logging.exception("Failed to pay merch")
-
-    raise TelegramError(f"Пришла оплата на хер пойми что: {str(payment)}")
+        try:
+            Merch.get(payment.invoice_payload)
+            return process_successful_merch(update, context)
+        except:
+            logging.exception("Failed to pay ticket")
+            raise TelegramError(f"Пришла оплата на хер пойми что: {str(payment)}")
 
 
 def process_successful_ticket(update: Update, context: CallbackContext):
@@ -596,12 +593,15 @@ def show_merch(update: Update, context: CallbackContext):
         currency = "RUB"
         prices = [LabeledPrice(merch.id, merch.price * 100)]
 
+        print(int(merch.price) * 100)
+
         context.bot.send_invoice(
             chat_id=update.effective_user.id, title=emojize(":penguin:", use_aliases=True) + merch.id,
             description=merch.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
             photo_url=merch.photo, photo_width=300, photo_height=300, need_name=True,
-            need_email=True, need_phone_number=True, max_tip_amount=100000
+            need_email=True, need_phone_number=True, max_tip_amount=1000000,
+            suggested_tip_amounts=[int(merch.price * 10), int(merch.price * 200), 500000]
         )
 
         index += 1
@@ -637,14 +637,15 @@ def show_tickets(update: Update, context: CallbackContext):
         payload = ticket.id
         provider_token = Settings.provider_token()
         currency = "RUB"
-        prices = [LabeledPrice(ticket.id, ticket.price * 10000)]
+        prices = [LabeledPrice(ticket.id, ticket.price * 100)]
 
         context.bot.send_invoice(
             chat_id=user.id, title=emojize(":admission_tickets:", use_aliases=True) + ticket.id,
             description=ticket.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
             photo_url=ticket.photo, photo_width=300, photo_height=300, need_name=True,
-            need_email=True, need_phone_number=True, max_tip_amount=100000
+            need_email=True, need_phone_number=True, max_tip_amount=1000000,
+            suggested_tip_amounts=[int(ticket.price * 10), int(ticket.price * 200), 500000]
         )
 
         index += 1
