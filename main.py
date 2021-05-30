@@ -439,15 +439,12 @@ def action_successful_payment_callback(update: Update, context: CallbackContext)
         Ticket.get(payment.invoice_payload)
         return process_successful_ticket(update, context)
     except:
-        logging.exception("Failed to pay ticket")
-
-    try:
-        Merch.get(payment.invoice_payload)
-        return process_successful_merch(update, context)
-    except:
-        logging.exception("Failed to pay merch")
-
-    raise TelegramError(f"Пришла оплата на хер пойми что: {str(payment)}")
+        try:
+            Merch.get(payment.invoice_payload)
+            return process_successful_merch(update, context)
+        except:
+            logging.exception("Failed to pay ticket")
+            raise TelegramError(f"Пришла оплата на хер пойми что: {str(payment)}")
 
 
 def process_successful_ticket(update: Update, context: CallbackContext):
@@ -647,7 +644,7 @@ def show_tickets(update: Update, context: CallbackContext):
             description=ticket.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
             photo_url=ticket.photo, photo_width=300, photo_height=300, need_name=True,
-            need_email=True, need_phone_number=True, max_tip_amount=100000,
+            need_email=True, need_phone_number=True, max_tip_amount=1000000,
             suggested_tip_amounts=[int(ticket.price * 10), int(ticket.price * 200), 500000]
         )
 

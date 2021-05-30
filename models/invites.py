@@ -5,6 +5,7 @@ from telegram import TelegramError
 from emoji import emojize
 from persistence.firebase_persistence import FirebasePersistence
 from models.users import User
+from settings import Settings
 from utils import helper
 
 store = FirebasePersistence()
@@ -89,7 +90,7 @@ class Invite:
             html += f"Выдано и активировано <a href='tg://user?id={self.participant.id}'>{self.participant.username}</a>"
         else:
             html += f"Твой код: {self.id}. Переходи по этой ссылке и регайся в боте: " \
-                    f"<a href='https://t.me/badbarbot?start={self.id}'>https://t.me/badbarbot?start={self.id}</a> " \
+                    f"<a href='https://t.me/{Settings.bot_name()}?start={self.id}'>https://t.me/{Settings.bot_name()}?start={self.id}</a> " \
                     f"и нажимай Start"
         return html
 
