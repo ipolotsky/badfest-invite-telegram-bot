@@ -7,3 +7,4 @@ tmp_code.png
 badfest-invites-fb-key.json
 poetry.lock
 FB_CREDS.json
+.env

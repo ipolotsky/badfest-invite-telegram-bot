@@ -1,6 +1,6 @@
 FROM python:3.9
 WORKDIR /opt
-RUN pip3 install poetry
+COPY requirements.txt requirements.txt
+RUN pip3 install -r requirements.txt
 COPY . .
-RUN poetry install
-ENTRYPOINT ["poetry", "run", "main.py"]
+ENTRYPOINT ["python3", "main.py"]
