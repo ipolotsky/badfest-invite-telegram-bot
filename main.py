@@ -365,8 +365,7 @@ def action_request_for_art(update: Update, context: CallbackContext):
     try:
         art_request = ArtRequest.by_creator(user)[0]
         update.message.reply_text(
-            f"Ты уже подал(а) заявку на арт-объект {art_request.created}",
-            reply_markup=ReplyKeyboardRemove(), disable_web_page_preview=True)
+            f"Ты уже подал(а) заявку на арт-объект {art_request.created}", disable_web_page_preview=True)
         return None
     except:
         pass
@@ -704,7 +703,7 @@ def show_state_text(update: Update, context: CallbackContext):
     state = convs.get(tuple([update.effective_user.id]))
     if state:
         update.message.reply_text(
-            state_texts[state], reply_markup=ReplyKeyboardMarkup(
+            state_texts[state] + f"\nИспользуй кнопочки с низу, если что-то хочешь.", reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(User.get(update.effective_user.id)),
                 resize_keyboard=True,
                 one_time_keyboard=True), disable_web_page_preview=True, )
