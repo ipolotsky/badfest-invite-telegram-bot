@@ -212,7 +212,7 @@ class User:
         return user
 
     @staticmethod
-    def all(sort: str = "created", reverse=True):
+    def all(sort: str = "created", reverse=False):
         fb_users = store.users.order_by_child(sort).get() if sort else store.users.get()
         fb_users = reversed(fb_users) if reverse else fb_users
 
