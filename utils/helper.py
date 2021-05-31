@@ -9,16 +9,20 @@ def safe_list_get(list_object, idx, default=""):
 
 
 def get_insta(text):
-    pattern = re.compile(r'https://(www\.|)instagram\.com/[a-z0-9]*')
+    pattern = re.compile(r'(https://|http://|)(www\.|)instagram\.com/[a-z0-9A-Z\-\_\.]+')
     try:
-        return pattern.search(text).group()
+        return "https://" + pattern.search(text).group() if re.search("^instagram\.com",
+                                                                      pattern.search(text).group()) else pattern.search(
+            text).group()
     except AttributeError:
         return False
 
 
 def get_vk(text):
-    pattern = re.compile(r'https://(www\.|m\.|)vk\.com/[a-z0-9]*')
+    pattern = re.compile(r'(https://|http://|)(www\.|m\.|)vk\.com/[a-z0-9A-Z\-\_\.]+')
     try:
-        return pattern.search(text).group()
+        return "https://" + pattern.search(text).group() if re.search("^vk\.com",
+                                                                      pattern.search(text).group()) else pattern.search(
+            text).group()
     except AttributeError:
         return False

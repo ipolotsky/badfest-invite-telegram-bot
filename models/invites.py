@@ -46,7 +46,7 @@ class Invite:
     @participant.setter
     def participant(self, participant: User):
         self._data["participant"] = participant.id
-        self._data["participant_name"] = participant.real_name
+        self._data["participant_name"] = participant.full_name()
 
     @property
     def created(self):
@@ -64,7 +64,7 @@ class Invite:
 
     def activated(self):
         try:
-            return self.participant
+            return bool(self.participant)
         except:
             return False
 
