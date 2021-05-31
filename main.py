@@ -863,8 +863,8 @@ def admin_show_list(update: Update, context: CallbackContext):
             reply_html = emojize(":admission_tickets:", use_aliases=True) + " " + reply_html
 
             purchase = TicketPurchase.get(user.purchase_id)
-            reply_html += f"Билет: {purchase.ticket_name} {purchase.total_amount / 100} р.\n" \
-                          f"Время покупки: {purchase.created}"
+            reply_html += f"\nБилет: {purchase.ticket_name} {purchase.total_amount / 100} р." \
+                          f"\nВремя покупки: {purchase.created}"
 
         update.message.reply_html(
             text=reply_html,
