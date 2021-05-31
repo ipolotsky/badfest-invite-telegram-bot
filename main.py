@@ -753,6 +753,13 @@ def precheckout_callback(update: Update, _: CallbackContext) -> None:
     if ticket:
         try:
             user = User.get(query.from_user.id)
+
+            if user.status == User.STATUS_READY:
+                query.answer(ok=False, error_message=f"Ты уже купил(а) билет на себя. "
+                                                     f"Если просто хочешь донатить нам - напиши ограм, "
+                                                     f"мы будем счастливы!")
+                return None
+
             if user.status != User.STATUS_APPROVED:
                 query.answer(ok=False, error_message=f"Так так... Пользователь {user.real_name} с id {user.id} "
                                                      f"и статусом {user.status} не подтвержден для покупки.")
