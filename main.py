@@ -64,7 +64,7 @@ state_texts = dict([
 
 # Bot buttons
 
-BUTTON_JOIN_WAITING_LIST = "Кода нет, хочу в список ожидания"
+BUTTON_JOIN_WAITING_LIST = "Хочу в список ожидания (код введу потом/кода нет) "
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
 BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
@@ -600,8 +600,8 @@ def show_merch(update: Update, context: CallbackContext):
             description=merch.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
             photo_url=merch.photo, photo_width=300, photo_height=300, need_name=True,
-            need_email=True, need_phone_number=True, max_tip_amount=1000000,
-            suggested_tip_amounts=[int(merch.price * 10), int(merch.price * 200), 500000]
+            need_email=True, need_phone_number=True, max_tip_amount=100000,
+            suggested_tip_amounts=[int(merch.price * 10), int(merch.price * 100), 50000]
         )
 
         index += 1
@@ -644,8 +644,8 @@ def show_tickets(update: Update, context: CallbackContext):
             description=ticket.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
             photo_url=ticket.photo, photo_width=300, photo_height=300, need_name=True,
-            need_email=True, need_phone_number=True, max_tip_amount=1000000,
-            suggested_tip_amounts=[int(ticket.price * 10), int(ticket.price * 200), 500000]
+            need_email=True, need_phone_number=True, max_tip_amount=100000,
+            suggested_tip_amounts=[int(ticket.price * 10), int(ticket.price * 100), 50000]
         )
 
         index += 1
