@@ -42,12 +42,13 @@ CONVERSATION_ADMIN_NAME = "admin_states_conversation"
 store = FirebasePersistence()
 
 # Conversation states
-STARTING, WAITING_NAME, WAITING_INSTA, \
+STARTING, WAITING_START_MANUAL_CODE, WAITING_NAME, WAITING_INSTA, \
 WAITING_VK, WAITING_APPROVE, WAITING_PAYMENT, \
-WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 10)
+WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 11)
 
 state_texts = dict([
-    (STARTING, 'Привет! Это бот BadFest 2021'),
+    (STARTING, 'Привет! Это бот BadFest 2021. Вводи код от друга либо вставай в очередь на ожидание!'),
+    (WAITING_START_MANUAL_CODE, 'Отлично! Вводи его скорее!'),
     (WAITING_NAME, 'Такс, давай знакомиться! Немного вопросиков, чтобы мы знали, кто ты такой(ая). \nКак тебя зовут?'),
     (WAITING_INSTA, 'Скинь, плиз, ссылку на инсту'),
     (WAITING_VK, 'Скинь, плиз, ссылку на vk'),
@@ -64,7 +65,8 @@ state_texts = dict([
 
 # Bot buttons
 
-BUTTON_JOIN_WAITING_LIST = "Хочу в список ожидания (код введу потом/кода нет) "
+BUTTON_JOIN_WAITING_LIST = "Очередь на ожидание"
+BUTTON_START_MANUAL_CODE = "Ввести код"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
 BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
@@ -107,7 +109,7 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
         buttons.append([str(BUTTON_I_HAVE_CODE)])
 
     if user.status == User.STATUS_WELCOME:
-        buttons.append([str(BUTTON_JOIN_WAITING_LIST)])
+        buttons.append([str(BUTTON_START_MANUAL_CODE), str(BUTTON_JOIN_WAITING_LIST)])
 
     if state in [WAITING_PAYMENT] and user.status == User.STATUS_APPROVED:
         buttons.append([str(BUTTON_INVITES), str(BUTTON_TICKETS)])
@@ -142,8 +144,8 @@ def check_code_on_start(update: Update, code: str):
 
     if invite.activated():
         update.message.reply_text(
-            "Эта ссылка уже активирована - попроси у друга новую и перейди по ней заново.\n"
-            "Ты можешь пользоваться ботом и записаться в список ожидания, но это такое.\n"
+            "Код по этой ссылке уже активирован - попроси у друга новую и перейди по ней заново.\n"
+            "Ты можешь пользоваться ботом и записаться в список ожидания, но это такое. Напиши боту что-нибудь\n"
         )
         return False
 
@@ -216,10 +218,12 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
             [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
 
     update.callback_query.answer()
-    update.callback_query.edit_message_text(text=state_texts[WAITING_NAME],
-                                            disable_web_page_preview=True,
-                                            reply_markup=InlineKeyboardMarkup(markup_buttons),
-                                            parse_mode=ParseMode.HTML)
+    update.callback_query.delete_message()
+    context.bot.send_message(
+        chat_id=user.id,
+        text=state_texts[WAITING_NAME],
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(markup_buttons))
 
     return WAITING_NAME
 
@@ -230,12 +234,78 @@ def decline_invite(update: Update, context: CallbackContext) -> Optional[int]:
     context.bot.send_message(chat_id=invite.creator.id, text=f"Твое приглашение ({code}) не приняли :(")
 
     update.callback_query.answer()
-    update.callback_query.edit_message_text(text="Штош. Если передумаешь, можешь заново пройти по ссылке"
-                                                 " либо записаться в список ожидания - для этого напиши что-нибудь сюда.",
-                                            disable_web_page_preview=True,
-                                            parse_mode=ParseMode.HTML)
+    update.callback_query.delete_message()
+
+    context.bot.send_message(
+        chat_id=update.effective_user.id,
+        text="Штош. Если передумаешь, можешь заново пройти по ссылке"
+             " либо записаться в список ожидания - для этого напиши что-нибудь сюда.",
+        disable_web_page_preview=True)
 
     return None
+
+
+def action_enter_waiting_start_code(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        state_texts[WAITING_START_MANUAL_CODE],reply_markup=ReplyKeyboardMarkup(
+            [[str(BUTTON_BACK)]], resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+
+    return WAITING_START_MANUAL_CODE
+
+
+def action_enter_start_manual_code(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    code = update.message.text.strip()
+    try:
+        invite = Invite.get(code)
+    except TelegramError:
+        update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
+            [[str(BUTTON_BACK)]], resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+        return None
+
+    if invite.activated():
+        update.message.reply_text("Этот код уже активирован - попроси у друга новый", reply_markup=ReplyKeyboardMarkup(
+            [[str(BUTTON_BACK)]], resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+        return None
+
+    user.status = User.STATUS_BY_REFERRAL
+    user.save()
+
+    invite = Invite.get(code)
+    invite.participant = user
+    invite.save()
+
+    context.bot.send_message(chat_id=invite.creator.id,
+                             text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое приглашение! :)")
+
+    update.message.reply_text(f"Шик! Код успешно применен!", reply_markup=ReplyKeyboardMarkup(
+        get_default_keyboard_bottom(user), resize_keyboard=True,
+        one_time_keyboard=True), disable_web_page_preview=True)
+
+    markup_buttons = []
+    if user.first_name or user.last_name:
+        markup_buttons = [
+            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
+
+    update.message.reply_text(
+        text=state_texts[WAITING_NAME],
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(markup_buttons))
+
+    return WAITING_NAME
+
+
+def action_back_from_start_manual_code(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    update.message.reply_text(
+        "Код можно ввести сейчас, а можно и потом (если записаться в очередь ожидания)", reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user), resize_keyboard=True,
+            one_time_keyboard=True), disable_web_page_preview=True)
+
+    return STARTING
 
 
 def action_join_waiting_list(update: Update, context: CallbackContext) -> Optional[int]:
@@ -270,12 +340,12 @@ def action_set_name(update: Update, context: CallbackContext) -> int:
 
     reply_text = (
         f"Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, "
-        f"например, https://www.instagram.com/badfestbad Не забудь проверить, что у тебя открытый профиль!"
+        f"например, https://www.instagram.com/badfestbad.\nНе забудь проверить, что у тебя открытый профиль!"
     )
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True, )
+            one_time_keyboard=True), disable_web_page_preview=True)
 
     return WAITING_INSTA
 
@@ -287,11 +357,13 @@ def action_set_name_callback(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, например, https://www.instagram.com/badfestbad'
+        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, например, https://www.instagram.com/badfestbad.\nНе забудь проверить, что у тебя открытый профиль!'
     )
 
     update.callback_query.answer()
-    update.callback_query.edit_message_text(text=reply_text)
+    update.callback_query.delete_message()
+
+    context.bot.send_message(chat_id=user.id, text=reply_text, disable_web_page_preview=True)
 
     return WAITING_INSTA
 
@@ -709,7 +781,7 @@ def show_state_text(update: Update, context: CallbackContext):
                 resize_keyboard=True,
                 one_time_keyboard=True), disable_web_page_preview=True, )
     else:
-        update.message.reply_text("Жамкни /start, только если у тебя нет ссылки от друга/подруги")
+        update.message.reply_text("Жамкни /start")
 
     return None
 
@@ -1104,6 +1176,11 @@ conv_handler = ConversationHandler(
     states={
         STARTING: [
             MessageHandler(Filters.regex(f'^{str(BUTTON_JOIN_WAITING_LIST)}'), action_join_waiting_list),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_START_MANUAL_CODE)}'), action_enter_waiting_start_code),
+        ],
+        WAITING_START_MANUAL_CODE: [
+            MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), action_back_from_start_manual_code),
+            MessageHandler(Filters.text, action_enter_start_manual_code),
         ],
         WAITING_NAME: [
             MessageHandler(
