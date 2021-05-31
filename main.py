@@ -659,6 +659,11 @@ def show_merch(update: Update, context: CallbackContext):
              "<a href='http://badbar.ru'>прочей лабудой</a>, которая нам, к сожалению, нужна:\n\n ",
         disable_web_page_preview=True)
 
+    update.message.reply_html(
+        text="Мерч будет доступен чуть позже ",
+        disable_web_page_preview=True)
+    return None
+
     for merch in Merch.by_type(Merch.ACTIVE_TYPE):
         payload = merch.id
         provider_token = Settings.provider_token()
