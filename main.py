@@ -38,7 +38,6 @@ logging.basicConfig(
 CONVERSATION_NAME = "user_states_conversation"
 CONVERSATION_ADMIN_NAME = "admin_states_conversation"
 
-
 store = FirebasePersistence()
 
 # Conversation states
@@ -47,17 +46,17 @@ WAITING_VK, WAITING_APPROVE, WAITING_PAYMENT, \
 WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 11)
 
 state_texts = dict([
-    (STARTING, 'Привет! Это бот BadFest 2021. Вводи код от друга либо вставай в очередь на ожидание!'),
+    (STARTING, 'Привет! Это бот BadFest 2021. Вводи код от друга либо нажимай на кнопку "Хочу на фест"!'),
     (WAITING_START_MANUAL_CODE, 'Отлично! Вводи его скорее!'),
-    (WAITING_NAME, 'Такс, давай знакомиться! Немного вопросиков, чтобы мы знали, кто ты такой(ая). \nКак тебя зовут?'),
-    (WAITING_INSTA, 'Скинь, плиз, ссылку на инсту'),
-    (WAITING_VK, 'Скинь, плиз, ссылку на vk'),
-    (WAITING_APPROVE, 'Ну все, теперь жди - как только модераторы тебя чекнут, тебе прилетят реферальные '
-                      'ссылки, чтобы пригласить друзей, а также ты сможешь оплатить билет прямо тут.'),
-    (WAITING_PAYMENT, "Хей! Тебя заапрувили! Теперь ты можешь покупать билет, а также у тебя есть две ссылки,"
+    (WAITING_NAME, 'Такс, давай знакомиться! Пара вопросов, чтобы мы узнали, кто ты такой(ая). \nКак тебя зовут?'),
+    (WAITING_INSTA, 'Скинь, плиз, ссылку на свою инсту'),
+    (WAITING_VK, 'А теперь ссылку на свой vk'),
+    (WAITING_APPROVE, 'Ну все, теперь жди - как только модераторы тебя подтвердят, тебе прилетят реферальные '
+                      'ссылки, чтобы пригласить друзей, а также ты сможешь оплатить билет прямо тут в боте.'),
+    (WAITING_PAYMENT, "Хей! Ты принят! Теперь ты можешь покупать билет, а также у тебя есть две ссылки,"
                       " по которым ты можешь пригласить друзей.\n"
                       "Приглашай только тех, за кого можешь поручиться =)" \
-                      "\nИ не забывай про билеты - они будут дорожать пропорционально изменению курса битка по модулю раз в несколько дней." \
+                      "\nИ не забывай про билеты - они будут дорожать каждую неделю." \
                       "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей."),
     (WAITING_FOR_MANUAL_CODE, "Супер! Введи код, плиз:"),
     (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2021!"),
@@ -65,7 +64,7 @@ state_texts = dict([
 
 # Bot buttons
 
-BUTTON_JOIN_WAITING_LIST = "Очередь на ожидание"
+BUTTON_JOIN_WAITING_LIST = "Хочу на Фест!"
 BUTTON_START_MANUAL_CODE = "Ввести код"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
 BUTTON_ADMIN_MERCH = "Весь мерч"
@@ -78,8 +77,10 @@ BUTTON_BACK = "Назад"
 BUTTON_INVITES = "Приглашения"
 BUTTON_TICKETS = "Билеты"
 BUTTON_MY_TICKET = "Мой билет"
+BUTTON_INFO = "Про BadFest2021"
+BUTTON_STATUS = "Как у меня дела"
 BUTTON_MERCH = "Мерч"
-BUTTON_REQUEST_FOR_ART = "Хочу делать арт-объект"
+BUTTON_REQUEST_FOR_ART = "Хочу делать арт-объект!"
 CALLBACK_ACCEPT_INVITE = "Accept"
 CALLBACK_DECLINE_INVITE = "Decline"
 CALLBACK_MORE_INVITES = "Moreinvites"
@@ -117,7 +118,7 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
     if state in [READY_DASHBOARD]:
         buttons.append([str(BUTTON_INVITES), str(BUTTON_MY_TICKET), str(BUTTON_REQUEST_FOR_ART)])
 
-    key_board = ['Status', 'Info', str(BUTTON_MERCH)]
+    key_board = [str(BUTTON_STATUS), str(BUTTON_INFO), str(BUTTON_MERCH)]
     if user.admin:
         in_admin_convs = store.get_conversations(str(CONVERSATION_ADMIN_NAME)).get(tuple([user.id]))
         if is_admin_in_convs and in_admin_convs:
@@ -136,7 +137,7 @@ def check_code_on_start(update: Update, code: str):
         invite = Invite.get(code)
     except TelegramError:
         update.message.reply_text(
-            "Нет такого кода реферального. Ты можешь пользоваться ботом и записаться в список ожидания, "
+            "Нет такого кода реферального. Ты можешь пользоваться ботом и нажать кнопку Хочу на Фест! и ждать, "
             "но это такое...\n"
             "Лучше проверь ссылку от друга на актуальность и перейди по ней заново ;)",
         )
@@ -145,7 +146,7 @@ def check_code_on_start(update: Update, code: str):
     if invite.activated():
         update.message.reply_text(
             "Код по этой ссылке уже активирован - попроси у друга новую и перейди по ней заново.\n"
-            "Ты можешь пользоваться ботом и записаться в список ожидания, но это такое. Напиши боту что-нибудь\n"
+            "Ты можешь пользоваться ботом и нажать на кнопку Хочу на Фест! и ждать, но это такое. Напиши боту что-нибудь\n"
         )
         return False
 
@@ -170,8 +171,7 @@ def action_start(update: Update, context: CallbackContext) -> None:
             return None
 
         invite = Invite.get(code)
-        reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n" \
-                     f"Почитай информацию по кнопке Info внизу."
+        reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n"
         update.message.reply_text(reply_text,
                                   reply_markup=ReplyKeyboardMarkup([[str(BUTTON_MERCH)]],
                                                                    resize_keyboard=True,
@@ -215,7 +215,8 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
     markup_buttons = []
     if user.first_name or user.last_name:
         markup_buttons = [
-            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
+            [InlineKeyboardButton(text=user.full_name(),
+                                  callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
 
     update.callback_query.answer()
     update.callback_query.delete_message()
@@ -231,7 +232,7 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
 def decline_invite(update: Update, context: CallbackContext) -> Optional[int]:
     code = update.callback_query.data.split(':')[1]
     invite = Invite.get(code)
-    context.bot.send_message(chat_id=invite.creator.id, text=f"Твое приглашение ({code}) не приняли :(")
+    context.bot.send_message(chat_id=invite.creator.id, text=f"Штош. Твое приглашение ({code}) не приняли :(")
 
     update.callback_query.answer()
     update.callback_query.delete_message()
@@ -239,7 +240,7 @@ def decline_invite(update: Update, context: CallbackContext) -> Optional[int]:
     context.bot.send_message(
         chat_id=update.effective_user.id,
         text="Штош. Если передумаешь, можешь заново пройти по ссылке"
-             " либо записаться в список ожидания - для этого напиши что-нибудь сюда.",
+             " либо нажать кнопку Хочу на Фест и ждать. Для этого напиши что-нибудь сюда.",
         disable_web_page_preview=True)
 
     return None
@@ -247,7 +248,7 @@ def decline_invite(update: Update, context: CallbackContext) -> Optional[int]:
 
 def action_enter_waiting_start_code(update: Update, context: CallbackContext):
     update.message.reply_text(
-        state_texts[WAITING_START_MANUAL_CODE],reply_markup=ReplyKeyboardMarkup(
+        state_texts[WAITING_START_MANUAL_CODE], reply_markup=ReplyKeyboardMarkup(
             [[str(BUTTON_BACK)]], resize_keyboard=True,
             one_time_keyboard=True), disable_web_page_preview=True)
 
@@ -288,7 +289,8 @@ def action_enter_start_manual_code(update: Update, context: CallbackContext):
     markup_buttons = []
     if user.first_name or user.last_name:
         markup_buttons = [
-            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
+            [InlineKeyboardButton(text=user.full_name(),
+                                  callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
 
     update.message.reply_text(
         text=state_texts[WAITING_NAME],
@@ -301,7 +303,7 @@ def action_enter_start_manual_code(update: Update, context: CallbackContext):
 def action_back_from_start_manual_code(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     update.message.reply_text(
-        "Код можно ввести сейчас, а можно и потом (если записаться в очередь ожидания)", reply_markup=ReplyKeyboardMarkup(
+        "Код можно ввести сейчас, а можно и потом (если нажата кнопка Хочу на Фест!)", reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user), resize_keyboard=True,
             one_time_keyboard=True), disable_web_page_preview=True)
 
@@ -322,7 +324,8 @@ def action_join_waiting_list(update: Update, context: CallbackContext) -> Option
     markup_buttons = []
     if user.first_name or user.last_name:
         markup_buttons = [
-            [InlineKeyboardButton(text=user.full_name(), callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
+            [InlineKeyboardButton(text=user.full_name(),
+                                  callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
 
     update.message.reply_text(
         text=state_texts[WAITING_NAME],
@@ -339,8 +342,9 @@ def action_set_name(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f"Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, "
-        f"например, https://www.instagram.com/badfestbad.\nНе забудь проверить, что у тебя открытый профиль!"
+        f"Приветы, {user.real_name}! Сначала скинь, как тебя найти в инсте (ссылка, "
+        f"например, https://www.instagram.com/badfestbad)\n"
+        f"Не забудь проверить, что у тебя открытый профиль!"
     )
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
@@ -357,7 +361,9 @@ def action_set_name_callback(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f'Приветы, {user.real_name}! Скинь, плиз, ссылку на инсту, например, https://www.instagram.com/badfestbad.\nНе забудь проверить, что у тебя открытый профиль!'
+        f"Приветы, {user.real_name}! Сначала скинь, как тебя найти в инсте (ссылка, "
+        f"например, https://www.instagram.com/badfestbad)\n"
+        f"Не забудь проверить, что у тебя открытый профиль!"
     )
 
     update.callback_query.answer()
@@ -374,7 +380,9 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
 
     insta_link = helper.get_insta(text)
     if not insta_link:
-        replay_text = "Хах, это не инста! Давай-ка ссылку на инсту, например, https://www.instagram.com/badfestbad"
+        replay_text = f"Хах, это не инста! Скинь, как тебя найти в инсте (ссылка, " \
+                      f"например, https://www.instagram.com/badfestbad)\n" \
+                      f"Не забудь проверить, что у тебя открытый профиль!"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(user),
@@ -384,7 +392,9 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
     user.insta = insta_link
     user.save()
 
-    reply_text = "Супер! Еще чуть-чуть. Теперь ссылочку на VK, например, https://vk.com/badfest/, плиз"
+    reply_text = "Супер! Еще чуть-чуть. Теперь скинь, как тебя найти в VK (ссылка, " \
+                 f"например, https://vk.com/badfest/)\n" \
+                 f"Не забудь проверить, что у тебя открытый профиль!"
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user), resize_keyboard=True,
@@ -399,7 +409,9 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
 
     vk_link = helper.get_vk(text)
     if not vk_link:
-        replay_text = "Хах, это не вк! Давай-ка ссылку на вк, например, https://vk.com/badfest/"
+        replay_text = "Хах, это не VK! Cкинь, как тебя найти в VK (ссылка, " \
+                 f"например, https://vk.com/badfest/)\n" \
+                 f"Не забудь проверить, что у тебя открытый профиль!"
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(user),
@@ -442,11 +454,15 @@ def action_request_for_art(update: Update, context: CallbackContext):
     except:
         pass
 
-    reply_text = f"Здесь текст о том, как круто строить объекты и получать за это радости"
+    reply_text = "<b>В этом году мы хотим делать творческую выставку. Принять участие в ней может кто угодно!</b>\n\n" \
+                 "Объекты могут быть полезными, как арт-толчок или кабинка для уединения, так и просто красивыми, как статуя Давида, — все зависит от твоей фантазии!\n\n" \
+                 "<b>Чтобы добавить мотивации на старте</b>, мы решили наградить самый творческий коллектив грантом на реализацию. Принимаем заявки до 20 июня, а 21 июня объявим тех, кто выиграл деньги на свой арт-объект\n\n" \
+                 "<b>Чтобы добавить мотивации на финише</b>, на фесте будет конкурс на самый клёвый арт-объект. Компетентное жюри выберет самую стильную/всратую/невероятную фигуру и авторы получат фирменный бэд-мерч!\n\n" \
+                 "Короче, тема классная. Собирай команду и регистрируйся"
     markup_buttons = [
-        [InlineKeyboardButton(text="Подать заявку на объект", callback_data=f"{CALLBACK_ART_REQUEST}:{user.id}")]]
+        [InlineKeyboardButton(text="Подать заявку на арт-объект", callback_data=f"{CALLBACK_ART_REQUEST}:{user.id}")]]
 
-    update.message.reply_text(
+    update.message.reply_html(
         text=reply_text,
         disable_web_page_preview=True,
         reply_markup=InlineKeyboardMarkup(markup_buttons))
@@ -562,7 +578,7 @@ def process_successful_ticket(update: Update, context: CallbackContext):
 
     for admin in User.admins():
         message = emojize(":money_bag:", use_aliases=True) + f" {user.real_name} ({user.username})" \
-                                                                         f" купил(а) билет '{purchase.ticket_name}' за {purchase.total_amount / 100} р."
+                                                             f" купил(а) билет '{purchase.ticket_name}' за {purchase.total_amount / 100} р."
         context.bot.send_message(chat_id=admin.id, text=message)
 
     return READY_DASHBOARD
@@ -600,8 +616,19 @@ def process_successful_merch(update: Update, context: CallbackContext) -> None:
 
 def show_info(update: Update, context: CallbackContext):
     update.message.reply_html(
-        f"Здесь будет вся информация про фест"
-    )
+        "<b>BADFEST 2021</b>\n\n"
+        "Время быть плохим!\n"
+        "Ежегодный фестиваль музыки, алкоголя, веселья, творчества с твоим участием в главной роли. Ничего особо не обещаем, будет плохо, обязательно приезжай. Ты пожалеешь, но тебе понравится.\n"
+        "Увидимся скоро!\n\n"
+        "BadFest в соцсетях: "
+        "<a href='https://instagram.com/badfestbad'>Instagram</a> / "
+        "<a href='https://t.me/badfest'>Telegram</a> / "
+        "<a href='https://vk.com/badfest'>VK</a>", disable_web_page_preview=True, disable_notification=True)
+    update.message.reply_html("<b>Что почитать перед тем как соглашаться на движ:</b>", disable_notification=True)
+    update.message.reply_html("<a href='https://vk.com/@badfest-manifest'>Манифест BADFEST</a>", disable_notification=True)
+    update.message.reply_html("<a href='https://vk.com/@badfest-fuck'>F.A.Q.</a>", disable_notification=True)
+    update.message.reply_html(
+        "Команда <a href='https://t.me/barbadbar'>BadBar</a> и друзья.\n", disable_web_page_preview=True)
 
 
 def show_invites(update: Update, context: CallbackContext):
@@ -654,15 +681,10 @@ def show_merch(update: Update, context: CallbackContext):
     index = 1
     update.message.reply_html(
         text="Выбирай мерч и покупай прямо тут в телеграме (да, так уже можно, начиная с апреля этого года)\n"
-             "Продолжая покупку, ты соглашаешься с <a href='http://badbar.ru'>правилами использования</a>, "
-             "<a href='http://badbar.ru'>политикой конфеденциальности</a> и "
-             "<a href='http://badbar.ru'>прочей лабудой</a>, которая нам, к сожалению, нужна:\n\n ",
+             "Продолжая покупку, ты соглашаешься с <a href='https://badbar.ru/policy'>"
+             "политикой конфеденциальности</a> и <a href='https://vk.com/@badfest-manifest'>прочей лабудой</a>,"
+             " которая нам, к сожалению, нужна:\n\n",
         disable_web_page_preview=True)
-
-    update.message.reply_html(
-        text="Мерч будет доступен чуть позже ",
-        disable_web_page_preview=True)
-    return None
 
     for merch in Merch.by_type(Merch.ACTIVE_TYPE):
         payload = merch.id
@@ -705,9 +727,9 @@ def show_tickets(update: Update, context: CallbackContext):
     index = 1
     update.message.reply_html(
         text="Выбирай билет и покупай прямо тут в телеграме (да, так уже можно, начиная с апреля этого года)\n"
-             "Продолжая покупку, ты соглашаешься с <a href='http://badbar.ru'>правилами использования</a>, "
-             "<a href='http://badbar.ru'>политикой конфеденциальности</a> и "
-             "<a href='http://badbar.ru'>прочей лабудой</a>, которая нам, к сожалению, нужна:\n\n ",
+             "Продолжая покупку, ты соглашаешься с <a href='https://badbar.ru/policy'>"
+             "политикой конфеденциальности</a> и <a href='https://vk.com/@badfest-manifest'>прочей лабудой</a>,"
+             " которая нам, к сожалению, нужна:\n\n",
         disable_web_page_preview=True)
 
     for ticket in Ticket.by_type(Ticket.PAID_TYPE):
@@ -788,7 +810,7 @@ def show_state_text(update: Update, context: CallbackContext):
     state = convs.get(tuple([update.effective_user.id]))
     if state:
         update.message.reply_text(
-            state_texts[state] + f"\nИспользуй кнопочки с низу, если что-то хочешь.", reply_markup=ReplyKeyboardMarkup(
+            state_texts[state] + f"\nИспользуй кнопочки снизу, если что-то хочешь.", reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(User.get(update.effective_user.id)),
                 resize_keyboard=True,
                 one_time_keyboard=True), disable_web_page_preview=True, )
@@ -993,7 +1015,16 @@ def art_request(update: Update, context: CallbackContext) -> None:
 
     ArtRequest.create_new(user)
     update.callback_query.answer()
-    update.callback_query.edit_message_text("Отлично! С тобой свяжутся организаторы. Прибывай в ожидании!")
+    update.callback_query.delete_message()
+    reply_text = "<b>Супер!</b> \n"\
+                 "Что нужно сделать в ближайшее время:\n"\
+                 "- Придумай название вашего творческого коллектива\n"\
+                 "- Собери участников творческого коллектива\n"\
+                 "- Придумай название арт-объекта и краткое описание, что это будет, из чего и для чего\n\n"\
+                 "<b>Придумал? Отлично!</b> Напиши это всё нашему красивому куратору " \
+                 "<a href='tg://user?id=211433130'>Карине Тиничевой</a>"
+    "\n\nТы восхитителен!"
+    context.bot.send_message(user.id, reply_text, parse_mode=ParseMode.HTML)
 
     for admin in User.admins():
         message = emojize(":building_construction:", use_aliases=True) + f" {user.real_name} ({user.username})" \
@@ -1139,9 +1170,8 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
         reply_text = emojize(":face_with_symbols_on_mouth:", use_aliases=True) + " REJECTED " + user.pretty_html()
 
         # notify user about approval
-        user_reply = "Сори, но тебя реджектнули! Администрация феста в праве отклонять заявки без указания причины," \
-                     " таковы правила.\nЧто теперь? Если ты считаешь это несправедливым, то напиши нам " \
-                     "(контакты в разделе Инфы) и обсудим."
+        user_reply = "Сори, но тебя реджектнули! Причин может быть тысячи, ведь мы знаем, что ты плохо вел себя в этом году. Или хорошо. Не важно!\nАдминистрация феста в праве отклонять заявки без указания причины," \
+                     " таковы правила.\nЧто теперь? Если ты считаешь что произошла ошибка, попробуй чуть позже снова нажать кнопку Хочу на фест."
         context.bot.send_message(chat_id=user.id,
                                  reply_markup=ReplyKeyboardMarkup(
                                      get_default_keyboard_bottom(user, None, False), resize_keyboard=True),
@@ -1156,28 +1186,28 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
 # Conversations
 
 conv_admin_handler = ConversationHandler(
-        entry_points=[MessageHandler(Filters.regex('^Admin$'), admin_action_dashboard)],
-        states={
-            ADMIN_DASHBOARD: [
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
-                               admin_show_approval_list, pass_user_data=True),
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_MERCH)}$'), admin_show_merch_list),
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ART_REQUESTS)}$'), admin_show_art_requests),
-                MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
-                               admin_show_approval_list, pass_user_data=True),
-                MessageHandler(Filters.regex(f'^{str(BUTTON_BACK)}$'), admin_action_back),
-                CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
-                CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
-                CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
-            ]
-        },
-        fallbacks=[],
-        name=str(CONVERSATION_ADMIN_NAME),
-        persistent=True,
-        per_chat=False,
-        per_message=False
-    )
+    entry_points=[MessageHandler(Filters.regex('^Admin$'), admin_action_dashboard)],
+    states={
+        ADMIN_DASHBOARD: [
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
+                           admin_show_approval_list, pass_user_data=True),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_MERCH)}$'), admin_show_merch_list),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ART_REQUESTS)}$'), admin_show_art_requests),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
+                           admin_show_approval_list, pass_user_data=True),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_BACK)}$'), admin_action_back),
+            CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
+            CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
+            CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
+        ]
+    },
+    fallbacks=[],
+    name=str(CONVERSATION_ADMIN_NAME),
+    persistent=True,
+    per_chat=False,
+    per_message=False
+)
 
 conv_handler = ConversationHandler(
     entry_points=[
@@ -1256,8 +1286,8 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # Add handlers
-    dispatcher.add_handler(MessageHandler(Filters.regex('^Status$'), show_status))
-    dispatcher.add_handler(MessageHandler(Filters.regex('^Info'), show_info))
+    dispatcher.add_handler(MessageHandler(Filters.regex(f'^{str(BUTTON_STATUS)}$'), show_status))
+    dispatcher.add_handler(MessageHandler(Filters.regex(f'^{str(BUTTON_INFO)}'), show_info))
     dispatcher.add_handler(MessageHandler(Filters.regex(f'^{BUTTON_MERCH}$'), show_merch))
 
     dispatcher.add_handler(conv_admin_handler)
