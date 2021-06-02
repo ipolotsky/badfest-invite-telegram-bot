@@ -111,7 +111,7 @@ class BaseProduct(ABC):
     @classmethod
     def all(cls, sort: str = "order", reverse=True):
         fb_goods = cls.ref().order_by_child(sort).get() if sort else cls.ref().get()
-        fb_goods = reversed(fb_goods) if reverse else fb_goods
-
         fb_goods = fb_goods if fb_goods else []
+
+        fb_goods = reversed(fb_goods) if reverse else fb_goods
         return [cls.get(ticket) for ticket in fb_goods]

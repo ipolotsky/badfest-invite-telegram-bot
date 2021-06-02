@@ -13,13 +13,11 @@ def get_insta(text):
     pattern_username = re.compile(r'(@|)([A-Za-z0-9\-\_\.]+)')
 
     if re.search("^http", text) or re.search("^[Ii]nstagram\.com", text):
-        print('hey')
         try:
             return "https://instagram.com/" + pattern_link.search(text).group(3)
         except AttributeError:
             return False
     else:
-        print('bye')
         try:
             return "https://instagram.com/" + pattern_username.search(text).group(2)
         except AttributeError:

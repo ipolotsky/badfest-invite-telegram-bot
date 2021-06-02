@@ -696,8 +696,6 @@ def show_merch(update: Update, context: CallbackContext):
         currency = "RUB"
         prices = [LabeledPrice(merch.id, merch.price * 100)]
 
-        print(int(merch.price) * 100)
-
         context.bot.send_invoice(
             chat_id=update.effective_user.id, title=emojize(":penguin:", use_aliases=True) + merch.id,
             description=merch.description, payload=payload, provider_token=provider_token,

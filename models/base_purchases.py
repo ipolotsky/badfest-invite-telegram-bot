@@ -158,7 +158,7 @@ class BasePurchase(ABC):
     @classmethod
     def all(cls, sort: str = "created", reverse=True):
         fb_purchases = cls.ref().order_by_child(sort).get() if sort else cls.ref().get()
-        fb_purchases = reversed(fb_purchases) if reverse else fb_purchases
-
         fb_purchases = fb_purchases if fb_purchases else []
+
+        fb_purchases = reversed(fb_purchases) if reverse else fb_purchases
         return list(map(lambda fb_purchase: cls.get(fb_purchase), fb_purchases))
