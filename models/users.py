@@ -21,14 +21,14 @@ class User:
     @staticmethod
     def status_to_pretty():
         return dict([
-            (User.STATUS_WELCOME, "только открыл бота"),
-            (User.STATUS_IN_WAITING_LIST, "тусит в списке ожидания, но пока не указал о себе данных"),
-            (User.STATUS_IN_WAITING_LIST_CHECKED, "тусит в списке ожидания, указал данные, "
-                                                  "и его пора апрувить/реджектить"),
-            (User.STATUS_BY_REFERRAL, "зарегался по ссылке, но еще не указал данные"),
-            (User.STATUS_BY_REFERRAL_CHECKED, "зарегался по ссылке, указал данные, и его пора апрувить/реджектить"),
-            (User.STATUS_APPROVED, "подтвержден, но не оплатил билет"),
-            (User.STATUS_REJECTED, "отклонен"),
+            (User.STATUS_WELCOME, "только открыл/а бота"),
+            (User.STATUS_IN_WAITING_LIST, "тусит в списке желающих на фест, но пока не указал/а о себе данных"),
+            (User.STATUS_IN_WAITING_LIST_CHECKED, "тусит в списке желающих на фест, указал/а данные, "
+                                                  "ждет результата модерации"),
+            (User.STATUS_BY_REFERRAL, "зарегался/ась по ссылке, но еще не указал/а данные"),
+            (User.STATUS_BY_REFERRAL_CHECKED, "зарегался/ась по ссылке, указал/а данные, ждет результата модерации"),
+            (User.STATUS_APPROVED, "подтвержден/ена, но не оплатил/а билет"),
+            (User.STATUS_REJECTED, "отклонен/а"),
             (User.STATUS_READY, "уже с билетом"),
         ])
 

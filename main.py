@@ -665,6 +665,7 @@ def show_invites(update: Update, context: CallbackContext):
 
 def show_my_ticket(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
+
     for purchase in TicketPurchase.by_user(user):
         reply_html = purchase.pretty_html()
         update.message.reply_html(
@@ -672,9 +673,12 @@ def show_my_ticket(update: Update, context: CallbackContext):
             disable_web_page_preview=True)
         try:
             with open(f'images/{purchase.id}.png', 'rb') as f:
-                context.bot.send_photo(user.id, photo=f, timeout=50)
+                pass
         except:
-            logging.log(logging.ERROR, "File not found")
+            purchase.create_image()
+
+        with open(f'images/{purchase.id}.png', 'rb') as f:
+            context.bot.send_photo(user.id, photo=f, timeout=50)
 
 
 def show_merch(update: Update, context: CallbackContext):
@@ -698,9 +702,9 @@ def show_merch(update: Update, context: CallbackContext):
             chat_id=update.effective_user.id, title=emojize(":penguin:", use_aliases=True) + merch.id,
             description=merch.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
-            photo_url=merch.photo, photo_width=300, photo_height=300, need_name=True,
-            need_email=True, need_phone_number=True, max_tip_amount=100000,
-            suggested_tip_amounts=[int(merch.price * 10), int(merch.price * 100), 50000]
+            photo_url=merch.photo, photo_width=500, photo_height=500, need_name=True,
+            need_email=True, need_phone_number=True, max_tip_amount=2000000,
+            suggested_tip_amounts=[int(merch.price * 10), int(merch.price * 100), int(merch.price * 300)]
         )
 
         index += 1
@@ -742,9 +746,9 @@ def show_tickets(update: Update, context: CallbackContext):
             chat_id=user.id, title=emojize(":admission_tickets:", use_aliases=True) + ticket.id,
             description=ticket.description, payload=payload, provider_token=provider_token,
             currency=currency, prices=prices,
-            photo_url=ticket.photo, photo_width=300, photo_height=300, need_name=True,
-            need_email=True, need_phone_number=True, max_tip_amount=100000,
-            suggested_tip_amounts=[int(ticket.price * 10), int(ticket.price * 100), 50000]
+            photo_url=ticket.photo, photo_width=500, photo_height=500, need_name=True,
+            need_email=True, need_phone_number=True, max_tip_amount=2000000,
+            suggested_tip_amounts=[int(ticket.price * 10), int(ticket.price * 100), int(ticket.price * 300)]
         )
 
         index += 1
