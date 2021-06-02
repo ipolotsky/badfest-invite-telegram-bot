@@ -681,9 +681,9 @@ def show_merch(update: Update, context: CallbackContext):
     index = 1
     update.message.reply_html(
         text="Выбирай мерч и покупай прямо тут в телеграме (да, так уже можно, начиная с апреля этого года)\n"
-             "Продолжая покупку, ты соглашаешься с <a href='http://badbar.ru/policy'>правилами использования</a>, "
-             "<a href='http://badbar.ru/policy'>политикой конфеденциальности</a> и "
-             "<a href='http://badbar.ru/policy'>прочей лабудой</a>, которая нам, к сожалению, нужна:\n\n ",
+             "Продолжая покупку, ты соглашаешься с <a href='https://badbar.ru/policy'>"
+             "политикой конфеденциальности</a> и <a href='https://vk.com/@badfest-manifest'>прочей лабудой</a>,"
+             " которая нам, к сожалению, нужна:\n\n",
         disable_web_page_preview=True)
 
     for merch in Merch.by_type(Merch.ACTIVE_TYPE):
@@ -727,9 +727,9 @@ def show_tickets(update: Update, context: CallbackContext):
     index = 1
     update.message.reply_html(
         text="Выбирай билет и покупай прямо тут в телеграме (да, так уже можно, начиная с апреля этого года)\n"
-             "Продолжая покупку, ты соглашаешься с <a href='http://badbar.ru/policy'>правилами использования</a>, "
-             "<a href='http://badbar.ru/policyu'>политикой конфеденциальности</a> и "
-             "<a href='http://badbar.ru/policy'>прочей лабудой</a>, которая нам, к сожалению, нужна:\n\n ",
+             "Продолжая покупку, ты соглашаешься с <a href='https://badbar.ru/policy'>"
+             "политикой конфеденциальности</a> и <a href='https://vk.com/@badfest-manifest'>прочей лабудой</a>,"
+             " которая нам, к сожалению, нужна:\n\n",
         disable_web_page_preview=True)
 
     for ticket in Ticket.by_type(Ticket.PAID_TYPE):
