@@ -342,7 +342,7 @@ def action_set_name(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f"Приветы, {user.real_name}! Сначала скинь, как тебя найти в инсте (имя профиля или ссылка, "
+        f"Приветы, {user.real_name}! Сначала скинь, как тебя найти в инсте (ссылка, "
         f"например, https://www.instagram.com/badfestbad)\n"
         f"Не забудь проверить, что у тебя открытый профиль!"
     )
@@ -361,7 +361,7 @@ def action_set_name_callback(update: Update, context: CallbackContext) -> int:
     user.save()
 
     reply_text = (
-        f"Приветы, {user.real_name}! Сначала скинь, как тебя найти в инсте (имя профиля или ссылка, "
+        f"Приветы, {user.real_name}! Сначала скинь, как тебя найти в инсте (ссылка, "
         f"например, https://www.instagram.com/badfestbad)\n"
         f"Не забудь проверить, что у тебя открытый профиль!"
     )
@@ -380,7 +380,7 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
 
     insta_link = helper.get_insta(text)
     if not insta_link:
-        replay_text = f"Хах, это не инста! Скинь, как тебя найти в инсте (имя профиля или ссылка, " \
+        replay_text = f"Хах, это не инста! Скинь, как тебя найти в инсте (ссылка, " \
                       f"например, https://www.instagram.com/badfestbad)\n" \
                       f"Не забудь проверить, что у тебя открытый профиль!"
         update.message.reply_text(
@@ -392,7 +392,7 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
     user.insta = insta_link
     user.save()
 
-    reply_text = "Супер! Еще чуть-чуть. Теперь скинь, как тебя найти в VK (имя профиля или ссылка, " \
+    reply_text = "Супер! Еще чуть-чуть. Теперь скинь, как тебя найти в VK (ссылка, " \
                  f"например, https://vk.com/badfest/)\n" \
                  f"Не забудь проверить, что у тебя открытый профиль!"
     update.message.reply_text(
@@ -409,7 +409,7 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
 
     vk_link = helper.get_vk(text)
     if not vk_link:
-        replay_text = "Хах, это не VK! Cкинь, как тебя найти в VK (имя профиля или ссылка, " \
+        replay_text = "Хах, это не VK! Cкинь, как тебя найти в VK (ссылка, " \
                  f"например, https://vk.com/badfest/)\n" \
                  f"Не забудь проверить, что у тебя открытый профиль!"
         update.message.reply_text(
@@ -685,11 +685,6 @@ def show_merch(update: Update, context: CallbackContext):
              "<a href='http://badbar.ru/policy'>политикой конфеденциальности</a> и "
              "<a href='http://badbar.ru/policy'>прочей лабудой</a>, которая нам, к сожалению, нужна:\n\n ",
         disable_web_page_preview=True)
-
-    update.message.reply_html(
-        text="Мерч будет доступен чуть позже ",
-        disable_web_page_preview=True)
-    return None
 
     for merch in Merch.by_type(Merch.ACTIVE_TYPE):
         payload = merch.id
