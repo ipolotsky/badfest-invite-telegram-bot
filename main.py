@@ -145,8 +145,7 @@ def check_code_on_start(update: Update, code: str):
 
     if invite.activated():
         update.message.reply_text(
-            "Код по этой ссылке уже активирован - попроси у друга новую и перейди по ней заново.\n"
-            "Ты можешь пользоваться ботом и нажать на кнопку Хочу на Фест! и ждать, но это такое. Напиши боту что-нибудь\n"
+            "Код по этой ссылке уже активирован. Напиши боту что-нибудь.\n"
         )
         return False
 
@@ -197,6 +196,39 @@ def action_start(update: Update, context: CallbackContext) -> None:
                                          resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
 
     return STARTING
+
+
+def action_start_inside(update: Update, context: CallbackContext):
+    if len(context.args) and context.args[0]:
+        code = context.args[0]
+        check = check_code_on_start(update, code)
+        if not check:
+            return None
+
+        user = User.get(update.effective_user.id)
+        if not (user.status in [User.STATUS_IN_WAITING_LIST_CHECKED,
+                               User.STATUS_IN_WAITING_LIST, User.STATUS_WELCOME]):
+            return None
+
+        if user.status == User.STATUS_WELCOME:
+            update_conversation(str(CONVERSATION_NAME), user, WAITING_NAME)
+
+        if user.status == User.STATUS_IN_WAITING_LIST_CHECKED:
+            user.status = User.STATUS_BY_REFERRAL_CHECKED
+
+        if user.status in [User.STATUS_IN_WAITING_LIST, User.STATUS_WELCOME]:
+            user.status = User.STATUS_BY_REFERRAL
+
+        user.save()
+
+        invite = Invite.get(code)
+        invite.participant = user
+        invite.save()
+        context.bot.send_message(chat_id=invite.creator.id,
+                                 text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое приглашение! :)")
+
+        context.bot.send_message(user.id, "Шик! Код успешно применен!")
+        show_state_text(update, context)
 
 
 def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
@@ -257,14 +289,17 @@ def action_enter_waiting_start_code(update: Update, context: CallbackContext):
 
 def action_enter_start_manual_code(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
-    code = update.message.text.strip()
+    code = update.message.text.strip().replace('/', '').split(' ')
     try:
-        invite = Invite.get(code)
+        invite = Invite.get(code[0])
     except TelegramError:
-        update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
-            [[str(BUTTON_BACK)]], resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
-        return None
+        try:
+            invite = Invite.get(code[1])
+        except:
+            update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
+                [[str(BUTTON_BACK)]], resize_keyboard=True,
+                one_time_keyboard=True), disable_web_page_preview=True)
+            return None
 
     if invite.activated():
         update.message.reply_text("Этот код уже активирован - попроси у друга новый", reply_markup=ReplyKeyboardMarkup(
@@ -275,7 +310,6 @@ def action_enter_start_manual_code(update: Update, context: CallbackContext):
     user.status = User.STATUS_BY_REFERRAL
     user.save()
 
-    invite = Invite.get(code)
     invite.participant = user
     invite.save()
 
@@ -488,14 +522,17 @@ def action_back_from_manual_code(update: Update, context: CallbackContext):
 
 def action_enter_code(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
-    code = update.message.text.strip()
+    code = update.message.text.strip().replace('/', '').split(' ')
     try:
-        invite = Invite.get(code)
-    except TelegramError:
-        update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
-            get_default_keyboard_bottom(user, [[str(BUTTON_BACK)]]), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
-        return None
+        invite = Invite.get(code[0])
+    except:
+        try:
+            invite = Invite.get(code[1])
+        except:
+            update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
+                get_default_keyboard_bottom(user, [[str(BUTTON_BACK)]]), resize_keyboard=True,
+                one_time_keyboard=True), disable_web_page_preview=True)
+            return None
 
     if invite.activated():
         update.message.reply_text("Этот код уже активирован - попроси у друга новый", reply_markup=ReplyKeyboardMarkup(
@@ -506,7 +543,6 @@ def action_enter_code(update: Update, context: CallbackContext):
     user.status = User.STATUS_BY_REFERRAL_CHECKED
     user.save()
 
-    invite = Invite.get(code)
     invite.participant = user
     invite.save()
 
@@ -538,11 +574,11 @@ def action_successful_payment_callback(update: Update, context: CallbackContext)
 def process_successful_ticket(update: Update, context: CallbackContext):
     payment = update.message.successful_payment
     user = User.get(update.effective_user.id)
-
+    ticket = Ticket.get(payment.invoice_payload)
     purchase = TicketPurchase.create_new(update.message.successful_payment.provider_payment_charge_id)
     purchase.currency = payment.currency
     purchase.total_amount = payment.total_amount
-    purchase.set_ticket_info(Ticket.get(payment.invoice_payload))
+    purchase.set_ticket_info(ticket)
     purchase.user = user
     purchase.phone_number = helper.safe_list_get(payment.order_info, "phone_number")
     purchase.email = helper.safe_list_get(payment.order_info, "email")
@@ -552,6 +588,7 @@ def process_successful_ticket(update: Update, context: CallbackContext):
     purchase.save()
 
     purchase.create_image()
+    ticket.increase_price()
 
     user.status = User.STATUS_READY
     user.purchase_id = purchase.id
@@ -1219,6 +1256,7 @@ conv_handler = ConversationHandler(
     ],
     states={
         STARTING: [
+            CommandHandler('start', action_start_inside),
             MessageHandler(Filters.regex(f'^{str(BUTTON_JOIN_WAITING_LIST)}'), action_join_waiting_list),
             MessageHandler(Filters.regex(f'^{str(BUTTON_START_MANUAL_CODE)}'), action_enter_waiting_start_code),
         ],
@@ -1227,22 +1265,26 @@ conv_handler = ConversationHandler(
             MessageHandler(Filters.text, action_enter_start_manual_code),
         ],
         WAITING_NAME: [
+            CommandHandler('start', action_start_inside),
             MessageHandler(
                 Filters.text, action_set_name
             ),
             CallbackQueryHandler(action_set_name_callback, pattern=rf'^{CALLBACK_BUTTON_REALNAME}:.*$'),
         ],
         WAITING_INSTA: [
+            CommandHandler('start', action_start_inside),
             MessageHandler(
                 Filters.text, action_set_insta,
             )
         ],
         WAITING_VK: [
+            CommandHandler('start', action_start_inside),
             MessageHandler(
                 Filters.text, action_set_vk,
             )
         ],
         WAITING_APPROVE: [
+            CommandHandler('start', action_start_inside),
             MessageHandler(Filters.regex(f'^{str(BUTTON_I_HAVE_CODE)}'), action_wait_code)
         ],
         WAITING_FOR_MANUAL_CODE: [
