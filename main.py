@@ -244,14 +244,16 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
     context.bot.send_message(chat_id=invite.creator.id,
                              text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое приглашение! :)")
 
+    update.callback_query.answer()
+    update.callback_query.delete_message()
+    context.bot.send_message(user.id, "Отлично!", reply_markup=ReplyKeyboardRemove())
+
     markup_buttons = []
     if user.first_name or user.last_name:
         markup_buttons = [
             [InlineKeyboardButton(text=user.full_name(),
                                   callback_data=f"{CALLBACK_BUTTON_REALNAME}:{user.full_name()}")]]
 
-    update.callback_query.answer()
-    update.callback_query.delete_message()
     context.bot.send_message(
         chat_id=user.id,
         text=state_texts[WAITING_NAME],
@@ -316,9 +318,9 @@ def action_enter_start_manual_code(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=invite.creator.id,
                              text=f"Ееееее! {user.full_name()} {user.username} принял(а) твое приглашение! :)")
 
-    update.message.reply_text(f"Шик! Код успешно применен!", reply_markup=ReplyKeyboardMarkup(
-        get_default_keyboard_bottom(user), resize_keyboard=True,
-        one_time_keyboard=True), disable_web_page_preview=True)
+    update.message.reply_text(f"Шик! Код успешно применен!",
+                              reply_markup=ReplyKeyboardRemove(),
+                              disable_web_page_preview=True)
 
     markup_buttons = []
     if user.first_name or user.last_name:
@@ -354,6 +356,8 @@ def action_join_waiting_list(update: Update, context: CallbackContext) -> Option
 
     user.status = User.STATUS_IN_WAITING_LIST
     user.save()
+
+    update.message.reply_text("Отлично!", reply_markup=ReplyKeyboardRemove())
 
     markup_buttons = []
     if user.first_name or user.last_name:
