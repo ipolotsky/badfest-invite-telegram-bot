@@ -118,7 +118,10 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
     if state in [READY_DASHBOARD]:
         buttons.append([str(BUTTON_INVITES), str(BUTTON_MY_TICKET), str(BUTTON_REQUEST_FOR_ART)])
 
-    key_board = [str(BUTTON_STATUS), str(BUTTON_INFO), str(BUTTON_MERCH)]
+    key_board = [str(BUTTON_STATUS), str(BUTTON_INFO)]
+    if Settings.enable_merch():
+        key_board.append(str(BUTTON_MERCH))
+
     if user.admin:
         in_admin_convs = store.get_conversations(str(CONVERSATION_ADMIN_NAME)).get(tuple([user.id]))
         if is_admin_in_convs and in_admin_convs:
@@ -172,7 +175,7 @@ def action_start(update: Update, context: CallbackContext) -> None:
         invite = Invite.get(code)
         reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n"
         update.message.reply_text(reply_text,
-                                  reply_markup=ReplyKeyboardMarkup([[str(BUTTON_MERCH)]],
+                                  reply_markup=ReplyKeyboardMarkup([[str(BUTTON_MERCH)] if Settings.enable_merch() else []],
                                                                    resize_keyboard=True,
                                                                    one_time_keyboard=True),
                                   disable_web_page_preview=True)

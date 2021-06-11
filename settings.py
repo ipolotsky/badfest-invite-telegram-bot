@@ -14,6 +14,12 @@ class Settings:
         return helper.safe_list_get(settings, "max_invites", 5)
 
     @staticmethod
+    def enable_merch():
+        from persistence.firebase_persistence import FirebasePersistence
+        settings = FirebasePersistence().settings.get()
+        return helper.safe_list_get(settings, "enable_merch", False)
+
+    @staticmethod
     def fb_creds():
         with open(f"FB_CREDS{'_TEST' if Settings.IS_TEST else ''}.json") as file:
             return json.load(file)
