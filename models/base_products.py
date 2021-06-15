@@ -1,3 +1,4 @@
+import collections
 from abc import ABC, abstractmethod
 from firebase_admin.db import Reference
 from telegram import TelegramError
@@ -99,12 +100,15 @@ class BaseProduct(ABC):
             raise TelegramError(f"Попытка создать товар id {_id}")
 
     @classmethod
-    def get(cls, _id: str):
-        if not cls.exists(_id):
-            raise TelegramError(f"Нет товара с id {_id}")
+    def get(cls, _id: str, data=None):
+        # if not cls.exists(_id):
+        #     raise TelegramError(f"Нет товара с id {_id}")
         instance = cls()
         instance.id = _id
-        instance.load()
+        if data:
+            instance._data = data
+        else:
+            instance.load()
 
         return instance
 
@@ -113,5 +117,5 @@ class BaseProduct(ABC):
         fb_goods = cls.ref().order_by_child(sort).get() if sort else cls.ref().get()
         fb_goods = fb_goods if fb_goods else []
 
-        fb_goods = reversed(fb_goods) if reverse else fb_goods
-        return [cls.get(ticket) for ticket in fb_goods]
+        fb_goods = collections.OrderedDict(reversed(list(fb_goods.items()))) if reverse else fb_goods
+        return [cls.get(ticket, fb_goods[ticket]) for ticket in fb_goods]

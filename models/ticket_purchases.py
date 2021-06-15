@@ -124,7 +124,7 @@ class TicketPurchase(BasePurchase):
 
         ticket = free_tickets[0]
         purchase.currency = "RUB"
-        purchase.total_amount = 0
+        purchase.total_amount = ticket.price * 100
         purchase.set_ticket_info(ticket)
         purchase.save()
 
