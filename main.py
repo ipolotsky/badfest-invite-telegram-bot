@@ -59,7 +59,11 @@ state_texts = dict([
                       "\nИ не забывай про билеты - они будут дорожать каждую неделю." \
                       "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей."),
     (WAITING_FOR_MANUAL_CODE, "Супер! Введи код, плиз:"),
-    (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2021!"),
+    (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2021!\n"
+                      "Полезные ссылки:\n"
+                      " - <a href='https://t.me/badfest'>Канал с новостями фестиваля</a>\n"
+                      " - <a href='https://t.me/joinchat/S6eWQnc4LxbJs_bU'>Чат участников фестиваля</a>\n"
+     ),
 ])
 
 # Bot buttons
@@ -233,6 +237,8 @@ def action_start_inside(update: Update, context: CallbackContext):
         context.bot.send_message(user.id, "Шик! Код успешно применен!")
         show_state_text(update, context)
 
+    update.message.reply_text("Ты уже зареган. Есть думаешь, что что-то идет не так, то напиши в поддержку @ipolotsky")
+
 
 def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
     code = update.callback_query.data.split(':')[1]
@@ -249,7 +255,10 @@ def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
 
     update.callback_query.answer()
     update.callback_query.delete_message()
-    context.bot.send_message(user.id, "Отлично!", reply_markup=ReplyKeyboardRemove())
+    context.bot.send_message(user.id, "Отлично! Держи сразу полезные ссылки:\n"
+                                      " - <a href='https://t.me/badfest'>Канал с новостями фестиваля</a>\n"
+                                      " - <a href='https://t.me/joinchat/S6eWQnc4LxbJs_bU'>Чат участников фестиваля</a>",
+                             reply_markup=ReplyKeyboardRemove(), parse_mode=ParseMode.HTML)
 
     markup_buttons = []
     if user.first_name or user.last_name:
@@ -360,7 +369,10 @@ def action_join_waiting_list(update: Update, context: CallbackContext) -> Option
     user.status = User.STATUS_IN_WAITING_LIST
     user.save()
 
-    update.message.reply_text("Отлично!", reply_markup=ReplyKeyboardRemove())
+    update.message.reply_text("Отлично! Держи сразу полезные ссылки:\n"
+                              " - <a href='https://t.me/badfest'>Канал с новостями фестиваля</a>\n"
+                              " - <a href='https://t.me/joinchat/S6eWQnc4LxbJs_bU'>Чат участников фестиваля</a>",
+                              reply_markup=ReplyKeyboardRemove(), parse_mode=ParseMode.HTML)
 
     markup_buttons = []
     if user.first_name or user.last_name:
@@ -859,7 +871,7 @@ def show_state_text(update: Update, context: CallbackContext):
             state_texts[state] + f"\nИспользуй кнопочки снизу, если что-то хочешь.", reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(User.get(update.effective_user.id)),
                 resize_keyboard=True,
-                one_time_keyboard=True), disable_web_page_preview=True, )
+                one_time_keyboard=True), disable_web_page_preview=True, parse_mode=ParseMode.HTML)
     else:
         update.message.reply_text("Жамкни /start")
 

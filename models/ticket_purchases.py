@@ -77,7 +77,7 @@ class TicketPurchase(BasePurchase):
     def pretty_html(self, index: int = None):
         return f"Билет '{self.ticket_name}' на BadFest 2021!\n" \
                f"Стоимость: {self.total_amount / 100}р.\n" \
-               f"Дата покупки: {self.created}"
+               f"Дата покупки: {self.created} (UTC)"
 
     def create_image(self):
         # generate qr
@@ -100,7 +100,7 @@ class TicketPurchase(BasePurchase):
         d.text((60, 130), 'Имя: ' + self.user.real_name, fill=(0, 0, 0), font=slave_font)
         d.text((60, 180), 'Тип: ' + self.ticket_name, fill=(0, 0, 0), font=slave_font)
         d.text((60, 230), 'Стоимость: ' + str(self.total_amount / 100) + ' рублей', fill=(0, 0, 0), font=slave_font)
-        d.text((60, 280), 'Дата: ' + self.created, fill=(0, 0, 0), font=slave_font)
+        d.text((60, 280), 'Дата: ' + self.created + ' (UTC)', fill=(0, 0, 0), font=slave_font)
 
         # get ticket size
         ticket_height = qr_img.height + text_img.height
