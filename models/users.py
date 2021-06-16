@@ -1,5 +1,6 @@
 import collections
 from datetime import datetime
+from itertools import groupby
 
 from telegram import TelegramError
 
@@ -234,3 +235,16 @@ class User:
     @staticmethod
     def by_status(_status: str):
         return list(filter(lambda user: user.status == _status, User.all()))
+
+    @staticmethod
+    def statistics():
+        user_list = User.all()
+        groups = collections.defaultdict(list)
+        for obj in user_list:
+            groups[obj.status].append(obj)
+
+        result = ""
+        for group in groups:
+            result += User.status_to_pretty()[group].capitalize() + ": " + str(len(groups[group])) + "\n"
+
+        return result

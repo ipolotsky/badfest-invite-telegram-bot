@@ -71,6 +71,7 @@ state_texts = dict([
 BUTTON_JOIN_WAITING_LIST = "Хочу на Фест!"
 BUTTON_START_MANUAL_CODE = "Ввести код"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
+BUTTON_ADMIN_STATS = "Статистика"
 BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
@@ -99,7 +100,7 @@ def admin_keyboard(buttons=None):
     if buttons is None:
         buttons = []
     buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST), str(BUTTON_ADMIN_ALL)])
-    buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
+    buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_STATS), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
     return buttons
 
 
@@ -910,6 +911,17 @@ def admin_action_back(update: Update, context: CallbackContext):
 
 # Admin show data functions:
 
+def admin_show_stats(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    update.message.reply_text("Статистика")
+    update.message.reply_text("Пользователи: \n" + User.statistics())
+    update.message.reply_text("Покупки: \n" + TicketPurchase.statistics())
+
+
 def admin_show_list(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
@@ -1248,6 +1260,7 @@ conv_admin_handler = ConversationHandler(
     states={
         ADMIN_DASHBOARD: [
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_STATS)}'), admin_show_stats),
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
                            admin_show_approval_list, pass_user_data=True),
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_MERCH)}$'), admin_show_merch_list),

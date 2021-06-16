@@ -1,3 +1,5 @@
+import collections
+import re
 import uuid
 from datetime import datetime
 
@@ -133,3 +135,44 @@ class TicketPurchase(BasePurchase):
     @staticmethod
     def by_user(user: User):
         return list(filter(lambda purchase: purchase.user.id == user.id, TicketPurchase.all()))
+
+    @staticmethod
+    def statistics():
+        purchase_list = TicketPurchase.all()
+        groups = collections.defaultdict(list)
+        groups["ОРГИ ПИДОРЫ"] = {'count': 0, 'items': []}
+        groups["БОМЖ"] = {'count': 0, 'items': []}
+        groups["НОРМ"] = {'count': 0, 'items': []}
+        groups["ИЛИТА"] = {'count': 0, 'items': []}
+        taxes = 0
+        total = 0
+        for obj in purchase_list:
+            total = total + obj.total_amount
+            if obj.ticket_name == "ОРГИ ПИДОРЫ":
+                if re.search('НОРМ', obj.ticket_description, re.IGNORECASE):
+                    groups["НОРМ"]['items'].append(obj)
+                    groups["НОРМ"]['count'] = groups["НОРМ"]['count'] + obj.total_amount
+                    continue
+
+                if re.search('БОМЖ', obj.ticket_description, re.IGNORECASE):
+                    groups["БОМЖ"]['items'].append(obj)
+                    groups["БОМЖ"]['count'] = groups["БОМЖ"]['count'] + obj.total_amount
+                    continue
+
+                if re.search('ИЛИТА', obj.ticket_description, re.IGNORECASE):
+                    groups["ИЛИТА"]['items'].append(obj)
+                    groups["ИЛИТА"]['count'] = groups["ИЛИТА"]['count'] + obj.total_amount
+                    continue
+
+            taxes = taxes + obj.total_amount
+            groups[obj.ticket_name]['items'].append(obj)
+            groups[obj.ticket_name]['count'] = groups[obj.ticket_name]['count'] + obj.total_amount
+
+        result = ""
+        for group in groups:
+            result += str(group).capitalize() + ": " + str(len(groups[group]['items'])) + " / " + str(groups[group]['count'] / 100) + "р. \n\n"
+
+        result += f"Всего: {str(total / 100)}р\n"
+        result += f"Через Кирю: {str(round(taxes / 100 * 0.905, 2))} ({str(taxes / 100)})\n"
+        result += f"Через тинек: {str((total - taxes) / 100)}р\n"
+        return result
