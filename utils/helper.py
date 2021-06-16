@@ -28,7 +28,7 @@ def get_vk(text):
     pattern_link = re.compile(r'(https://|http://|)(www\.|)[Vv]k\.com/([A-Za-z\d\-\_\.]+)')
     pattern_username = re.compile(r'(@|)([A-Za-z0-9\-\_\.]+)')
 
-    if re.search("^http", text) or re.search("^[VV]k\.com", text):
+    if re.search("^http", text) or re.search("^[Vv]k\.com", text):
         try:
             return "https://vk.com/" + pattern_link.search(text).group(3)
         except AttributeError:
