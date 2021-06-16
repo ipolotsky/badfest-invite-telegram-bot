@@ -1,3 +1,4 @@
+import collections
 import random
 import string
 from datetime import datetime
@@ -69,13 +70,16 @@ class ArtRequest:
         return html
 
     @staticmethod
-    def get(_id: str):
-        if not ArtRequest.exists(_id):
-            raise TelegramError(f"Нет арт запроса с id {_id}")
+    def get(_id: str, data=None):
+        # if not ArtRequest.exists(_id):
+        #     raise TelegramError(f"Нет арт запроса с id {_id}")
 
         art_request = ArtRequest()
         art_request.id = _id
-        art_request.load()
+        if data:
+            art_request._data = data
+        else:
+            art_request.load()
 
         return art_request
 
@@ -107,8 +111,8 @@ class ArtRequest:
         fb_art_requests = store.art_requests.order_by_child(sort).get() if sort else store.art_requests.get()
         fb_art_requests = fb_art_requests if fb_art_requests else []
 
-        fb_art_requests = reversed(fb_art_requests) if reverse else fb_art_requests
-        return [ArtRequest.get(fb_art_request) for fb_art_request in fb_art_requests]
+        fb_art_requests = collections.OrderedDict(reversed(list(fb_art_requests.items()))) if reverse else fb_art_requests
+        return [ArtRequest.get(fb_art_request, fb_art_requests[fb_art_request]) for fb_art_request in fb_art_requests]
 
     @staticmethod
     def by_creator(creator: User):

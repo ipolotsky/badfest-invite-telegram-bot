@@ -1,3 +1,4 @@
+import collections
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -127,12 +128,15 @@ class BasePurchase(ABC):
         self._data = _data
 
     @classmethod
-    def get(cls, _id: str):
+    def get(cls, _id: str, data=None):
         if not cls.exists(_id):
             raise TelegramError(f"Нет покупки с id {_id}")
         purchase = cls()
         purchase.id = _id
-        purchase.load()
+        if data:
+            purchase._data = data
+        else:
+            purchase.load()
 
         return purchase
 
@@ -158,7 +162,7 @@ class BasePurchase(ABC):
     @classmethod
     def all(cls, sort: str = "created", reverse=True):
         fb_purchases = cls.ref().order_by_child(sort).get() if sort else cls.ref().get()
-        fb_purchases = fb_purchases if fb_purchases else []
+        fb_purchases = fb_purchases if fb_purchases else collections.OrderedDict()
 
-        fb_purchases = reversed(fb_purchases) if reverse else fb_purchases
-        return list(map(lambda fb_purchase: cls.get(fb_purchase), fb_purchases))
+        fb_purchases = collections.OrderedDict(reversed(list(fb_purchases.items()))) if reverse else fb_purchases
+        return [cls.get(fb_purchase, fb_purchases[fb_purchase]) for fb_purchase in fb_purchases]

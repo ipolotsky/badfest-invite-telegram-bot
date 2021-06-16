@@ -1,3 +1,4 @@
+import collections
 import random
 import string
 from datetime import datetime
@@ -95,13 +96,16 @@ class Invite:
         return html
 
     @staticmethod
-    def get(_id: str):
-        if not Invite.exists(_id):
-            raise TelegramError(f"Нет приглашения с id {_id}")
+    def get(_id: str, data=None):
+        # if not Invite.exists(_id):
+        #     raise TelegramError(f"Нет приглашения с id {_id}")
 
         invite = Invite()
         invite.id = _id
-        invite.load()
+        if data:
+            invite._data = data
+        else:
+            invite.load()
 
         return invite
 
@@ -138,8 +142,8 @@ class Invite:
         fb_invites = store.invites.order_by_child(sort).get() if sort else store.invites.get()
         fb_invites = fb_invites if fb_invites else []
 
-        fb_invites = reversed(fb_invites) if reverse else fb_invites
-        return list(map(lambda fb_invite: Invite.get(fb_invite), fb_invites))
+        fb_invites = collections.OrderedDict(reversed(list(fb_invites.items()))) if reverse else fb_invites
+        return list(map(lambda fb_invite: Invite.get(fb_invite, fb_invites[fb_invite]), fb_invites))
 
     @staticmethod
     def activated_list():
@@ -147,7 +151,7 @@ class Invite:
 
     @staticmethod
     def by_creator(creator: User):
-        return list(filter(lambda invite: invite.creator.id == creator.id, Invite.all()))
+        return list(filter(lambda invite: invite._data['creator'] == creator.id, Invite.all()))
 
     @staticmethod
     def by_participant(participant: User, cached_invites: list = None):

@@ -1,3 +1,4 @@
+import collections
 from datetime import datetime
 
 from telegram import TelegramError
@@ -173,22 +174,25 @@ class User:
                "Data: {} ({}) / <a href='tg://user?id={}'>{}</a>\n" \
                "<a href='{}'>instagram</a> / <a href='{}'>vk</a>\n" \
                "\n".format(str(index) + ". " if index else "",
-                             self.real_name,
-                             User.status_to_pretty()[self.status],
-                             self.full_name(),
-                             self.id,
-                             self.id,
-                             self.username,
-                             self.insta,
-                             self.vk)
+                           self.real_name,
+                           User.status_to_pretty()[self.status],
+                           self.full_name(),
+                           self.id,
+                           self.id,
+                           self.username,
+                           self.insta,
+                           self.vk)
 
     @staticmethod
-    def get(_id: int):
-        if not User.exists(_id):
-            raise TelegramError(f"Нет пользователя с id {_id}")
+    def get(_id: int, data=None):
+        # if not User.exists(_id):
+        #     raise TelegramError(f"Нет пользователя с id {_id}")
         user = User()
         user.id = _id
-        user.load()
+        if data:
+            user._data = data
+        else:
+            user.load()
 
         return user
 
@@ -216,8 +220,8 @@ class User:
         fb_users = store.users.order_by_child(sort).get() if sort else store.users.get()
         fb_users = fb_users if fb_users else []
 
-        fb_users = reversed(fb_users) if reverse else fb_users
-        return list(map(lambda fb_user: User.get(fb_user), fb_users))
+        fb_users = collections.OrderedDict(reversed(list(fb_users.items()))) if reverse else fb_users
+        return list(map(lambda fb_user: User.get(fb_user, fb_users[fb_user]), fb_users))
 
     @staticmethod
     def gods():
