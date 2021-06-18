@@ -1216,17 +1216,22 @@ def admin_send_broadcast(update: Update, context: CallbackContext):
     context.bot.send_message(admin_user.id, f"Отправляю вот это: \n\n{text}\n\n"
                                             f"Сколько пользователей получат: {len(users)}\n\n"
                                             f"Ожидай, пока я не напишу, что все всем отправил!")
-    send_bulk(text, users, context)
+    bad_users = send_bulk(text, users, context)
     store.broadcasts.child("history")\
         .child(datetime.fromtimestamp(date).strftime('%Y-%m-%d %H:%M:%S')).set({
             "timestamp": date,
             "text": text,
             "for_whom": User.status_to_buttons()[status],
             "sender": admin_user.full_name(),
-            "amount": len(users)
+            "amount": len(users),
+            "failed": len(bad_users),
         }
     )
-    context.bot.send_message(admin_user.id, "Терпение - золото (хуита, конечно). Все успешно отправилось!")
+
+    context.bot.send_message(admin_user.id, f"Терпение - золото (хуита, конечно). {len(users) - len(bad_users)} успешно отправилось!")
+    if len(bad_users) > 0:
+        bad_nicknames = [user.username for user in bad_users]
+        context.bot.send_message(admin_user.id, f"Кроме этих пидорасов: {', '.join(bad_nicknames)}")
 
 
 def admin_gift(update: Update, context: CallbackContext) -> None:
@@ -1346,12 +1351,18 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
 
 def send_bulk(text: str, users: list[User], context: CallbackContext):
     index = 1
+    bad_users = []
     for user in users:
         if index % BULK_SEND_SLEEP_STEP == 0:
             logging.log(logging.INFO, "sleeping for 2 sec")
             time.sleep(2)
-        context.bot.send_message(user.id, text, parse_mode=ParseMode.HTML)
+        try:
+            context.bot.send_message(user.id, text, parse_mode=ParseMode.HTML)
+        except:
+            bad_users.append(user)
         index = index + 1
+
+    return bad_users
 
 
 conv_admin_handler = ConversationHandler(

@@ -102,7 +102,7 @@ class User:
 
     @property
     def username(self):
-        return f"@{helper.safe_list_get(self._data, 'username', 'direct')}"
+        return f"@{helper.safe_list_get(self._data, 'username', 'no_username')}"
 
     @username.setter
     def username(self, username: str):
