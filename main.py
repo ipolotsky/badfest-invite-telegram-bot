@@ -2,8 +2,9 @@
 # pylint: disable=C0116
 
 import logging
+import time
+from datetime import datetime
 
-from PIL import Image
 from emoji import emojize
 from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
@@ -35,6 +36,8 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 
+BULK_SEND_SLEEP_STEP = 25
+
 CONVERSATION_NAME = "user_states_conversation"
 CONVERSATION_ADMIN_NAME = "admin_states_conversation"
 
@@ -43,7 +46,7 @@ store = FirebasePersistence()
 # Conversation states
 STARTING, WAITING_START_MANUAL_CODE, WAITING_NAME, WAITING_INSTA, \
 WAITING_VK, WAITING_APPROVE, WAITING_PAYMENT, \
-WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD = range(1, 11)
+WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD, ADMIN_BROADCAST = range(1, 12)
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021. Вводи код от друга либо нажимай на кнопку "Хочу на фест"!'),
@@ -76,6 +79,7 @@ BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
 BUTTON_ADMIN_ALL = "Все пользователи"
+BUTTON_ADMIN_BROADCAST = "Broadcast"
 BUTTON_ADMIN_ART_REQUESTS = "Карина"
 BUTTON_I_HAVE_CODE = "У меня есть код"
 BUTTON_BACK = "Назад"
@@ -99,8 +103,9 @@ CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 def admin_keyboard(buttons=None):
     if buttons is None:
         buttons = []
+    buttons.append([str(BUTTON_ADMIN_BROADCAST), str(BUTTON_ADMIN_STATS)])
     buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST), str(BUTTON_ADMIN_ALL)])
-    buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_STATS), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
+    buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
     return buttons
 
 
@@ -153,7 +158,8 @@ def check_code_on_start(update: Update, code: str):
 
     if invite.activated():
         update.message.reply_text(
-            "Код по этой ссылке уже активирован. Напиши боту что-нибудь.\n"
+            "Код по этой ссылке уже активирован. Если ты только-только пришел, напиши боту что-нибудь."
+            "Если уже зареганый - то смотри, что написано выше.\n"
         )
         return False
 
@@ -895,6 +901,60 @@ def admin_action_dashboard(update: Update, context: CallbackContext):
     return ADMIN_DASHBOARD
 
 
+def admin_broadcast_set(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    text = update.message.text.strip()\
+        .replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+    try:
+        store.broadcasts.child('current').set({
+            "text": text
+        })
+        update.message.reply_html(
+            f"Текст для отправки:\n\n{text}",
+            reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True, one_time_keyboard=True),
+            disable_web_page_preview=True)
+
+        groups = User.group_by_status()
+        buttons = [[InlineKeyboardButton(text=f"{User.status_to_buttons()[status]} ({len(groups[status])})", callback_data=status)] for status in groups]
+        update.message.reply_text("Если все ок, выбери, кому отправить. Если нет - напиши еще раз нужный текст в ответ. Милорд!",
+                                  reply_markup=InlineKeyboardMarkup(buttons))
+    except:
+        update.message.reply_text("Чет не то, проверь синтаксис",
+                                  reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True,one_time_keyboard=True))
+    finally:
+        return None
+
+
+def admin_action_broadcast(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    update.message.reply_text(
+        'Милорд, напиши сообщение, можна юзать теги b и a разметку, потом посмотрим, как оно выглядит и отправим, если что.',
+        reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True,
+                                         one_time_keyboard=True), disable_web_page_preview=True)
+
+    return ADMIN_BROADCAST
+
+
+def admin_action_broadcast_back(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+    update.message.reply_text(
+        'Приходи в другой раз с готовым текстом!',
+        reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True,
+                                         one_time_keyboard=True), disable_web_page_preview=True)
+    return ADMIN_DASHBOARD
+
+
 def admin_action_back(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
@@ -1138,6 +1198,37 @@ def add_more_invite(update: Update, context: CallbackContext):
 
 # Admin functions:
 
+def admin_send_broadcast(update: Update, context: CallbackContext):
+    admin_user = User.get(update.effective_user.id)
+    if not admin_user or not admin_user.admin:
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text="Ну-ка! Куда полез!?", parse_mode=ParseMode.HTML)
+        return None
+
+    update.callback_query.answer()
+    update.callback_query.delete_message()
+    status = update.callback_query.data.strip()
+
+    text = store.broadcasts.child("current").get()['text']
+    date = datetime.now().timestamp()
+    users = User.by_status(status)
+
+    context.bot.send_message(admin_user.id, f"Отправляю вот это: \n\n{text}\n\n"
+                                            f"Сколько пользователей получат: {len(users)}\n\n"
+                                            f"Ожидай, пока я не напишу, что все всем отправил!")
+    send_bulk(text, users, context)
+    store.broadcasts.child("history")\
+        .child(datetime.fromtimestamp(date).strftime('%Y-%m-%d %H:%M:%S')).set({
+            "timestamp": date,
+            "text": text,
+            "for_whom": User.status_to_buttons()[status],
+            "sender": admin_user.full_name(),
+            "amount": len(users)
+        }
+    )
+    context.bot.send_message(admin_user.id, "Терпение - золото (хуита, конечно). Все успешно отправилось!")
+
+
 def admin_gift(update: Update, context: CallbackContext) -> None:
     admin_user = User.get(update.effective_user.id)
     if not admin_user or not admin_user.admin:
@@ -1253,7 +1344,15 @@ def admin_reject(update: Update, context: CallbackContext) -> None:
     return None
 
 
-# Conversations
+def send_bulk(text: str, users: list[User], context: CallbackContext):
+    index = 1
+    for user in users:
+        if index % BULK_SEND_SLEEP_STEP == 0:
+            logging.log(logging.INFO, "sleeping for 2 sec")
+            time.sleep(2)
+        context.bot.send_message(user.id, text, parse_mode=ParseMode.HTML)
+        index = index + 1
+
 
 conv_admin_handler = ConversationHandler(
     entry_points=[MessageHandler(Filters.regex('^Admin$'), admin_action_dashboard)],
@@ -1268,9 +1367,15 @@ conv_admin_handler = ConversationHandler(
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
                            admin_show_approval_list, pass_user_data=True),
             MessageHandler(Filters.regex(f'^{str(BUTTON_BACK)}$'), admin_action_back),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_BROADCAST)}$'), admin_action_broadcast),
             CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
             CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
             CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
+        ],
+        ADMIN_BROADCAST: [
+            MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), admin_action_broadcast_back),
+            MessageHandler(Filters.text, admin_broadcast_set),
+            CallbackQueryHandler(admin_send_broadcast),
         ]
     },
     fallbacks=[],
@@ -1279,6 +1384,8 @@ conv_admin_handler = ConversationHandler(
     per_chat=False,
     per_message=False
 )
+# Conversations
+
 
 conv_handler = ConversationHandler(
     entry_points=[
