@@ -34,6 +34,19 @@ class User:
             (User.STATUS_READY, "уже с билетом"),
         ])
 
+    @staticmethod
+    def status_to_buttons():
+        return dict([
+            (User.STATUS_WELCOME, "Открыл бота"),
+            (User.STATUS_IN_WAITING_LIST, "Без ссылки, идет регистрация"),
+            (User.STATUS_IN_WAITING_LIST_CHECKED, "Без ссылки, ждет апрув"),
+            (User.STATUS_BY_REFERRAL, "По ссылке, идет регистрация"),
+            (User.STATUS_BY_REFERRAL_CHECKED, "По ссылке, ждет апрув"),
+            (User.STATUS_APPROVED, "Подтвержден, без билета"),
+            (User.STATUS_REJECTED, "Отколнен"),
+            (User.STATUS_READY, "Есть билет"),
+        ])
+
     def __init__(self):
         self._id = None
         self._data = {}
@@ -89,7 +102,7 @@ class User:
 
     @property
     def username(self):
-        return f"@{helper.safe_list_get(self._data, 'username', 'direct')}"
+        return f"@{helper.safe_list_get(self._data, 'username', 'no_username')}"
 
     @username.setter
     def username(self, username: str):
@@ -237,12 +250,15 @@ class User:
         return list(filter(lambda user: user.status == _status, User.all()))
 
     @staticmethod
-    def statistics():
-        user_list = User.all()
+    def group_by_status():
         groups = collections.defaultdict(list)
-        for obj in user_list:
+        for obj in User.all():
             groups[obj.status].append(obj)
+        return groups
 
+    @staticmethod
+    def statistics():
+        groups = User.group_by_status()
         result = ""
         for group in groups:
             result += User.status_to_pretty()[group].capitalize() + ": " + str(len(groups[group])) + "\n"

@@ -30,6 +30,7 @@ class FirebasePersistence(BasePersistence):
         self.merch = db.reference("merch")
 
         self.invites = db.reference("invites")
+        self.broadcasts = db.reference("broadcasts")
         self.art_requests = db.reference("art_requests")
         self.settings = db.reference("settings")
         self.fb_chat_data = db.reference("chat_data")
