@@ -1,6 +1,7 @@
 import collections
 import re
 import uuid
+import csv
 from datetime import datetime
 
 from firebase_admin.db import Reference
@@ -176,3 +177,21 @@ class TicketPurchase(BasePurchase):
         result += f"Через Кирю: {str(round(taxes / 100 * 0.905, 2))} ({str(taxes / 100)})\n"
         result += f"Через тинек: {str((total - taxes) / 100)}р\n"
         return result
+
+    @staticmethod
+    def statistics_csv():
+        # csv header
+        fieldnames = ['customer_name', 'email', 'ticket_name', 'ticket_base_price',
+                      'total_amount', 'phone_number',
+                      'user', 'user_name', 'user_username',
+                      'ticket_description', 'id', 'created',
+                      'provider_payment_charge_id', 'telegram_payment_charge_id', 'currency',
+                      'issuer_username', 'issuer_name', 'issuer']
+
+        # csv data
+        rows = [purchase._data for purchase in TicketPurchase.all()]
+
+        with open('purchases.csv', 'w', encoding='UTF8', newline='\n') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)

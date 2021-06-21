@@ -76,6 +76,7 @@ BUTTON_JOIN_WAITING_LIST = "Хочу на Фест!"
 BUTTON_START_MANUAL_CODE = "Ввести код"
 BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
 BUTTON_ADMIN_STATS = "Статистика"
+BUTTON_ADMIN_CSV = "Покупки CSV"
 BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
@@ -104,7 +105,7 @@ CALLBACK_BUTTON_GIFT_TICKET = "Gift"
 def admin_keyboard(buttons=None):
     if buttons is None:
         buttons = []
-    buttons.append([str(BUTTON_ADMIN_BROADCAST), str(BUTTON_ADMIN_STATS)])
+    buttons.append([str(BUTTON_ADMIN_BROADCAST), str(BUTTON_ADMIN_CSV), str(BUTTON_ADMIN_STATS)])
     buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST), str(BUTTON_ADMIN_ALL)])
     buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
     return buttons
@@ -983,6 +984,17 @@ def admin_show_stats(update: Update, context: CallbackContext):
     update.message.reply_text("Покупки: \n" + TicketPurchase.statistics())
 
 
+def admin_show_csv(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    TicketPurchase.statistics_csv()
+    with open(f'purchases.csv', 'rb') as f:
+        update.message.reply_document(document=f)
+
+
 def admin_show_list(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
@@ -1377,6 +1389,7 @@ conv_admin_handler = ConversationHandler(
     states={
         ADMIN_DASHBOARD: [
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ALL)}'), admin_show_list),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CSV)}'), admin_show_csv),
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_STATS)}'), admin_show_stats),
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
                            admin_show_approval_list, pass_user_data=True),
