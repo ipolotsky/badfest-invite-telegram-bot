@@ -2,6 +2,7 @@
 # pylint: disable=C0116
 
 import logging
+import re
 import time
 from datetime import datetime
 
@@ -992,49 +993,55 @@ def admin_show_list(update: Update, context: CallbackContext):
         update.message.reply_text("Неверная команда")
         return None
 
-    users = []
-    if context.matches[0].string == BUTTON_ADMIN_ALL:
-        users = User.all()
-
-    if context.matches[0].string == BUTTON_ADMIN_KARINA:
-        users = User.all()  # todo add filters
+    users = User.all()
 
     i = 1
-    invites = Invite.all()
+    result = ""
     for user in users:
-        reply_html = user.pretty_html(i)
-        try:
-            invite = Invite.by_participant(user, cached_invites=invites)[0]
-            reply_html += f"\nКто пригласил: {invite.creator.real_name} {invite.creator.username}"
-        except:
-            pass
-
-        markup_buttons = []
-        if not user.purchase_id and (user.status in [User.STATUS_APPROVED]):
-            markup_buttons.append([
-                InlineKeyboardButton(
-                    text='Выдать билет', callback_data=f"{str(CALLBACK_BUTTON_GIFT_TICKET)}:" + str(user.id))
-            ])
-
-        if user.purchase_id:
-            reply_html = emojize(":admission_tickets:", use_aliases=True) + " " + reply_html
-
-            purchase = TicketPurchase.get(user.purchase_id)
-            reply_html += f"\nБилет: {purchase.ticket_name} {purchase.total_amount / 100} р." \
-                          f"\nВремя покупки: {purchase.created}"
-
-        update.message.reply_html(
-            text=reply_html,
-            disable_web_page_preview=True,
-            reply_markup=InlineKeyboardMarkup(markup_buttons))
+        if len(str(result + user.pretty_html(i))) > 4000:
+            update.message.reply_html(result, disable_web_page_preview=True)
+            result = user.pretty_html(f"/{str(user.id)} {i}")
+            continue
+        result = result + user.pretty_html(f"/{str(user.id)} {i}") + "\n"
         i += 1
 
     update.message.reply_html(
-        "Всего пользователей: " + str(len(users)), reply_markup=ReplyKeyboardMarkup(
+        f"{result}\n\nВсего пользователей: " + str(len(users)), reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
             one_time_keyboard=False), disable_web_page_preview=True, )
     return None
+
+
+def admin_show_one_user(update: Update, context: CallbackContext):
+    pattern = re.compile(r'^\/([0-9]+)$')
+    id = pattern.search(update.message.text).group(1)
+    user = User.get(int(id))
+    reply_html = user.pretty_html()
+    try:
+        invite = Invite.by_participant(user)[0]
+        reply_html += f"\nКто пригласил: {invite.creator.real_name} {invite.creator.username}"
+    except:
+        pass
+
+    markup_buttons = []
+    if not user.purchase_id and (user.status in [User.STATUS_APPROVED]):
+        markup_buttons.append([
+            InlineKeyboardButton(
+                text='Выдать билет', callback_data=f"{str(CALLBACK_BUTTON_GIFT_TICKET)}:" + str(user.id))
+        ])
+
+    if user.purchase_id:
+        reply_html = emojize(":admission_tickets:", use_aliases=True) + " " + reply_html
+
+        purchase = TicketPurchase.get(user.purchase_id)
+        reply_html += f"\nБилет: {purchase.ticket_name} {purchase.total_amount / 100} р." \
+                      f"\nВремя покупки: {purchase.created}"
+
+    update.message.reply_html(
+        text=reply_html,
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(markup_buttons))
 
 
 def admin_show_art_requests(update: Update, context: CallbackContext):
@@ -1382,6 +1389,7 @@ conv_admin_handler = ConversationHandler(
             CallbackQueryHandler(admin_gift, pattern=rf'^({str(CALLBACK_BUTTON_GIFT_TICKET)}.*$)'),
             CallbackQueryHandler(admin_approve, pattern=r'^(Approve.*$)'),
             CallbackQueryHandler(admin_reject, pattern=r'^(Reject.*$)'),
+            MessageHandler(Filters.regex(f'^\/[0-9]+$'), admin_show_one_user)
         ],
         ADMIN_BROADCAST: [
             MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), admin_action_broadcast_back),
