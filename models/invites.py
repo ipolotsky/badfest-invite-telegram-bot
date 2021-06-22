@@ -156,6 +156,6 @@ class Invite:
     @staticmethod
     def by_participant(participant: User, cached_invites: list = None):
         return list(
-            filter(lambda invite: invite._data['participant'] and str(invite._data['participant']) == str(participant.id),
+            filter(lambda invite: helper.safe_list_get(invite._data, 'participant') and str(invite._data['participant']) == str(participant.id),
                    cached_invites if cached_invites else Invite.all())
         )

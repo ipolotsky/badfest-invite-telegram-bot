@@ -1127,11 +1127,10 @@ def admin_show_approval_list(update: Update, context: CallbackContext):
         users = User.by_status(User.STATUS_BY_REFERRAL_CHECKED)
 
     i = 1
-    invites = Invite.all()
     for user in users:
         reply_html = user.pretty_html(i)
         try:
-            invite = Invite.by_participant(user, cached_invites=invites)[0]
+            invite = Invite.by_participant(user)[0]
             reply_html += f"\nКто пригласил: {invite.creator.real_name} {invite.creator.username}"
         except:
             pass
