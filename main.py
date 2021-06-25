@@ -845,6 +845,10 @@ def precheckout_callback(update: Update, _: CallbackContext) -> None:
         return None
 
     if ticket:
+        if ticket.type != Ticket.PAID_TYPE:
+            query.answer(ok=False, error_message=f"Билет то уже не актуальный, ты чо")
+            return None
+
         try:
             user = User.get(query.from_user.id)
 
