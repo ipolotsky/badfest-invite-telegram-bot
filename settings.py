@@ -39,3 +39,9 @@ class Settings:
     @staticmethod
     def bot_name() -> str:
         return "badbarbot" if Settings.IS_TEST else "badfestbot"
+
+    @staticmethod
+    def gods():
+        with open(f"gods.json") as file:
+            return json.load(file)
+

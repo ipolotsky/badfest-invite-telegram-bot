@@ -2,6 +2,7 @@
 # pylint: disable=C0116
 
 import logging
+import random
 import re
 import time
 from datetime import datetime
@@ -88,6 +89,7 @@ BUTTON_BACK = "Назад"
 BUTTON_INVITES = "Приглашения"
 BUTTON_TICKETS = "Билеты"
 BUTTON_MY_TICKET = "Мой билет"
+BUTTON_GOD = "Чей я бог"
 BUTTON_INFO = "Про BadFest2021"
 BUTTON_STATUS = "Как у меня дела"
 BUTTON_MERCH = "Мерч"
@@ -128,7 +130,8 @@ def get_default_keyboard_bottom(user: User, buttons=None, is_admin_in_convs=True
         buttons.append([str(BUTTON_INVITES), str(BUTTON_TICKETS)])
 
     if state in [READY_DASHBOARD]:
-        buttons.append([str(BUTTON_INVITES), str(BUTTON_MY_TICKET), str(BUTTON_REQUEST_FOR_ART)])
+        buttons.append([str(BUTTON_GOD), str(BUTTON_MY_TICKET)])
+        buttons.append([str(BUTTON_INVITES), str(BUTTON_REQUEST_FOR_ART)])
 
     key_board = [str(BUTTON_STATUS), str(BUTTON_INFO)]
     if Settings.enable_merch():
@@ -727,6 +730,17 @@ def show_invites(update: Update, context: CallbackContext):
             disable_web_page_preview=True,
             reply_markup=InlineKeyboardMarkup(markup_buttons))
 
+
+def show_my_god(update: Update, context: CallbackContext):
+    try:
+        gods = Settings.gods()['gods']
+        update.message.reply_html(
+            text=f"Ты - бог {random.choice(gods)}",
+            disable_web_page_preview=True)
+    except:
+        update.message.reply_html(
+            text=f"Хаха, бога то нет... ну или база с богами не прогрузилась",
+            disable_web_page_preview=True)
 
 def show_my_ticket(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
@@ -1475,6 +1489,7 @@ conv_handler = ConversationHandler(
         READY_DASHBOARD: [
             MessageHandler(Filters.regex(f'^{BUTTON_INVITES}$'), show_invites),
             MessageHandler(Filters.regex(f'^{BUTTON_MY_TICKET}$'), show_my_ticket),
+            MessageHandler(Filters.regex(f'^{BUTTON_GOD}$'), show_my_god),
             MessageHandler(Filters.regex(f'^{BUTTON_REQUEST_FOR_ART}$'), action_request_for_art),
             CallbackQueryHandler(add_more_invite, pattern=rf'^{str(CALLBACK_MORE_INVITES)}$'),
             CallbackQueryHandler(art_request, pattern=rf'^({str(CALLBACK_ART_REQUEST)}.*$)'),
