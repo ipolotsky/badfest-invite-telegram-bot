@@ -742,10 +742,12 @@ def show_my_god(update: Update, context: CallbackContext):
             text=f"Хаха, бога то нет... ну или база с богами не прогрузилась",
             disable_web_page_preview=True)
 
+
 def show_my_ticket(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
+    purchases = TicketPurchase.by_user(user)
 
-    for purchase in TicketPurchase.by_user(user):
+    for purchase in purchases:
         reply_html = purchase.pretty_html()
         update.message.reply_html(
             text=reply_html,

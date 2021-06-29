@@ -135,7 +135,7 @@ class TicketPurchase(BasePurchase):
 
     @staticmethod
     def by_user(user: User):
-        return list(filter(lambda purchase: purchase.user.id == user.id, TicketPurchase.all()))
+        return list(filter(lambda purchase: purchase._data["user"] and purchase._data["user"] == user.id, TicketPurchase.all()))
 
     @staticmethod
     def statistics():

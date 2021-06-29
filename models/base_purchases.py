@@ -129,8 +129,8 @@ class BasePurchase(ABC):
 
     @classmethod
     def get(cls, _id: str, data=None):
-        if not cls.exists(_id):
-            raise TelegramError(f"Нет покупки с id {_id}")
+        # if not cls.exists(_id):
+        #     raise TelegramError(f"Нет покупки с id {_id}")
         purchase = cls()
         purchase.id = _id
         if data:
