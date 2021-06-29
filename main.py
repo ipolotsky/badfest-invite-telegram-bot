@@ -193,7 +193,7 @@ def action_start(update: Update, context: CallbackContext) -> None:
         update.message.reply_text(reply_text,
                                   reply_markup=ReplyKeyboardMarkup([[str(BUTTON_MERCH)] if Settings.enable_merch() else []],
                                                                    resize_keyboard=True,
-                                                                   one_time_keyboard=True),
+                                                                   ),
                                   disable_web_page_preview=True)
 
         markup_buttons = [[
@@ -212,7 +212,7 @@ def action_start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
         reply_text,
         reply_markup=ReplyKeyboardMarkup(get_default_keyboard_bottom(user),
-                                         resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
+                                         resize_keyboard=True), disable_web_page_preview=True, )
 
     return STARTING
 
@@ -249,7 +249,7 @@ def action_start_inside(update: Update, context: CallbackContext):
         context.bot.send_message(user.id, "Шик! Код успешно применен!")
         show_state_text(update, context)
 
-    update.message.reply_text("Ты уже зареган. Есть думаешь, что что-то идет не так, то напиши в поддержку @ipolotsky")
+    update.message.reply_text("Ты уже зареган. Есть думаешь, что что-то идет не так, то напиши боту Привет! или в поддержку @ipolotsky")
 
 
 def accept_invite(update: Update, context: CallbackContext) -> Optional[int]:
@@ -308,7 +308,7 @@ def action_enter_waiting_start_code(update: Update, context: CallbackContext):
     update.message.reply_text(
         state_texts[WAITING_START_MANUAL_CODE], reply_markup=ReplyKeyboardMarkup(
             [[str(BUTTON_BACK)]], resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
 
     return WAITING_START_MANUAL_CODE
 
@@ -324,13 +324,13 @@ def action_enter_start_manual_code(update: Update, context: CallbackContext):
         except:
             update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
                 [[str(BUTTON_BACK)]], resize_keyboard=True,
-                one_time_keyboard=True), disable_web_page_preview=True)
+                ), disable_web_page_preview=True)
             return None
 
     if invite.activated():
         update.message.reply_text("Этот код уже активирован - попроси у друга новый", reply_markup=ReplyKeyboardMarkup(
             [[str(BUTTON_BACK)]], resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
         return None
 
     user.status = User.STATUS_BY_REFERRAL
@@ -365,7 +365,7 @@ def action_back_from_start_manual_code(update: Update, context: CallbackContext)
     update.message.reply_text(
         "Код можно ввести сейчас, а можно и потом (если нажата кнопка Хочу на Фест!)", reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
 
     return STARTING
 
@@ -414,7 +414,7 @@ def action_set_name(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
 
     return WAITING_INSTA
 
@@ -451,7 +451,7 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(user),
-                resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
+                resize_keyboard=True), disable_web_page_preview=True, )
         return None
 
     user.insta = insta_link
@@ -463,7 +463,7 @@ def action_set_insta(update: Update, context: CallbackContext) -> Optional[int]:
     update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True, )
+            ), disable_web_page_preview=True, )
 
     return WAITING_VK
 
@@ -480,7 +480,7 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         update.message.reply_text(
             replay_text, reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(user),
-                resize_keyboard=True, one_time_keyboard=True), disable_web_page_preview=True, )
+                resize_keyboard=True), disable_web_page_preview=True, )
         return None
 
     user.vk = vk_link
@@ -500,7 +500,7 @@ def action_set_vk(update: Update, context: CallbackContext) -> Optional[int]:
         reply_text, reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user),
             resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
 
     for admin in User.admins():
         message = "Надо проверить нового участника: " + user.pretty_html() + "\n"
@@ -546,7 +546,7 @@ def action_back_from_manual_code(update: Update, context: CallbackContext):
     update.message.reply_text(
         state_texts[WAITING_APPROVE], reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user, [[str(BUTTON_I_HAVE_CODE)]]), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
 
     return WAITING_APPROVE
 
@@ -562,13 +562,13 @@ def action_enter_code(update: Update, context: CallbackContext):
         except:
             update.message.reply_text("Нет такого кода реферального", reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(user, [[str(BUTTON_BACK)]]), resize_keyboard=True,
-                one_time_keyboard=True), disable_web_page_preview=True)
+                ), disable_web_page_preview=True)
             return None
 
     if invite.activated():
         update.message.reply_text("Этот код уже активирован - попроси у друга новый", reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user, [[str(BUTTON_BACK)]]), resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
         return None
 
     user.status = User.STATUS_BY_REFERRAL_CHECKED
@@ -582,7 +582,7 @@ def action_enter_code(update: Update, context: CallbackContext):
 
     update.message.reply_text("Шик! Код успешно применен! Жди проверку модератора.", reply_markup=ReplyKeyboardMarkup(
         get_default_keyboard_bottom(user), resize_keyboard=True,
-        one_time_keyboard=True), disable_web_page_preview=True)
+        ), disable_web_page_preview=True)
 
     return WAITING_APPROVE
 
@@ -628,7 +628,7 @@ def process_successful_ticket(update: Update, context: CallbackContext):
     update_conversation(str(CONVERSATION_NAME), user, READY_DASHBOARD)
 
     update.message.reply_text(state_texts[READY_DASHBOARD], reply_markup=ReplyKeyboardMarkup(
-        get_default_keyboard_bottom(user), resize_keyboard=True, one_time_keyboard=True),
+        get_default_keyboard_bottom(user), resize_keyboard=True),
                               disable_web_page_preview=True,
                               parse_mode=ParseMode.HTML)
 
@@ -732,14 +732,19 @@ def show_invites(update: Update, context: CallbackContext):
 
 
 def show_my_god(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
     try:
         gods = Settings.gods()['gods']
         update.message.reply_html(
             text=f"Ты - бог {random.choice(gods)}",
+            reply_markup=ReplyKeyboardMarkup(
+                get_default_keyboard_bottom(user), resize_keyboard=True),
             disable_web_page_preview=True)
     except:
         update.message.reply_html(
             text=f"Хаха, бога то нет... ну или база с богами не прогрузилась",
+            reply_markup=ReplyKeyboardMarkup(
+                get_default_keyboard_bottom(user), resize_keyboard=True),
             disable_web_page_preview=True)
 
 
@@ -759,7 +764,8 @@ def show_my_ticket(update: Update, context: CallbackContext):
             purchase.create_image()
 
         with open(f'images/{purchase.id}.png', 'rb') as f:
-            context.bot.send_photo(user.id, photo=f, timeout=50)
+            context.bot.send_photo(user.id, photo=f, timeout=50, reply_markup=ReplyKeyboardMarkup(
+                get_default_keyboard_bottom(user), resize_keyboard=True),)
 
 
 def show_merch(update: Update, context: CallbackContext):
@@ -887,8 +893,13 @@ def precheckout_callback(update: Update, _: CallbackContext) -> None:
 
 
 def show_status(update: Update, context: CallbackContext) -> None:
+    user = User.get(update.effective_user.id)
     update.message.reply_html(
-        f"Все, что знаем о тебе\n\n{User.get(update.effective_user.id).pretty_html()}"
+        f"Все, что знаем о тебе\n\n{user.pretty_html()}",
+        reply_markup=ReplyKeyboardMarkup(
+            get_default_keyboard_bottom(user),
+            resize_keyboard=True,
+            )
     )
 
 
@@ -900,7 +911,7 @@ def show_state_text(update: Update, context: CallbackContext):
             state_texts[state] + f"\nИспользуй кнопочки снизу, если что-то хочешь.", reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(User.get(update.effective_user.id)),
                 resize_keyboard=True,
-                one_time_keyboard=True), disable_web_page_preview=True, parse_mode=ParseMode.HTML)
+                ), disable_web_page_preview=True, parse_mode=ParseMode.HTML)
     else:
         update.message.reply_text("Жамкни /start")
 
@@ -918,7 +929,7 @@ def admin_action_dashboard(update: Update, context: CallbackContext):
     update.message.reply_text(
         'Милорд!',
         reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True,
-                                         one_time_keyboard=True), disable_web_page_preview=True, )
+                                         ), disable_web_page_preview=True, )
 
     return ADMIN_DASHBOARD
 
@@ -937,7 +948,7 @@ def admin_broadcast_set(update: Update, context: CallbackContext):
         })
         update.message.reply_html(
             f"Текст для отправки:\n\n{text}",
-            reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True, one_time_keyboard=True),
+            reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True),
             disable_web_page_preview=True)
 
         groups = User.group_by_status()
@@ -946,7 +957,7 @@ def admin_broadcast_set(update: Update, context: CallbackContext):
                                   reply_markup=InlineKeyboardMarkup(buttons))
     except:
         update.message.reply_text("Чет не то, проверь синтаксис",
-                                  reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True,one_time_keyboard=True))
+                                  reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True,))
     finally:
         return None
 
@@ -960,7 +971,7 @@ def admin_action_broadcast(update: Update, context: CallbackContext):
     update.message.reply_text(
         'Милорд, напиши сообщение, можна юзать теги b и a разметку, потом посмотрим, как оно выглядит и отправим, если что.',
         reply_markup=ReplyKeyboardMarkup(admin_keyboard([[str(BUTTON_BACK)]]), resize_keyboard=True,
-                                         one_time_keyboard=True), disable_web_page_preview=True)
+                                         ), disable_web_page_preview=True)
 
     return ADMIN_BROADCAST
 
@@ -973,7 +984,7 @@ def admin_action_broadcast_back(update: Update, context: CallbackContext):
     update.message.reply_text(
         'Приходи в другой раз с готовым текстом!',
         reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True,
-                                         one_time_keyboard=True), disable_web_page_preview=True)
+                                         ), disable_web_page_preview=True)
     return ADMIN_DASHBOARD
 
 
@@ -987,7 +998,7 @@ def admin_action_back(update: Update, context: CallbackContext):
         'Возвращайтесь, админка ждет своего господина!', reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user, None, False),
             resize_keyboard=True,
-            one_time_keyboard=True), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
     return -1
 
 
@@ -1041,7 +1052,7 @@ def admin_show_list(update: Update, context: CallbackContext):
         f"{result}\n\nВсего пользователей: " + str(len(users)), reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
-            one_time_keyboard=False), disable_web_page_preview=True, )
+            ), disable_web_page_preview=True, )
     return None
 
 
@@ -1097,7 +1108,7 @@ def admin_show_art_requests(update: Update, context: CallbackContext):
         stats, reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
-            one_time_keyboard=False), disable_web_page_preview=True)
+            ), disable_web_page_preview=True)
     return None
 
 
@@ -1125,7 +1136,7 @@ def admin_show_merch_list(update: Update, context: CallbackContext):
         stats, reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
-            one_time_keyboard=False), disable_web_page_preview=True, )
+            ), disable_web_page_preview=True, )
     return None
 
 
@@ -1171,7 +1182,7 @@ def admin_show_approval_list(update: Update, context: CallbackContext):
         "Всего ждут: " + str(len(users)), reply_markup=ReplyKeyboardMarkup(
             admin_keyboard(),
             resize_keyboard=True,
-            one_time_keyboard=False), disable_web_page_preview=True, )
+            ), disable_web_page_preview=True, )
     return None
 
 
@@ -1307,7 +1318,7 @@ def admin_gift(update: Update, context: CallbackContext) -> None:
         context.bot.send_message(user.id, state_texts[READY_DASHBOARD], reply_markup=ReplyKeyboardMarkup(
             get_default_keyboard_bottom(user),
             resize_keyboard=True,
-            one_time_keyboard=True),
+            ),
                                  disable_web_page_preview=True,
                                  parse_mode=ParseMode.HTML)
 
@@ -1343,7 +1354,7 @@ def admin_approve(update: Update, context: CallbackContext) -> None:
         user_reply = state_texts[WAITING_PAYMENT]
         context.bot.send_message(chat_id=user.id,
                                  reply_markup=ReplyKeyboardMarkup(
-                                     get_default_keyboard_bottom(user), resize_keyboard=True, one_time_keyboard=True),
+                                     get_default_keyboard_bottom(user), resize_keyboard=True),
                                  disable_web_page_preview=True, text=user_reply, parse_mode=ParseMode.HTML)
 
         reply_text = emojize(":check_mark_button:", use_aliases=True) + " APPROVED " + user.pretty_html()
