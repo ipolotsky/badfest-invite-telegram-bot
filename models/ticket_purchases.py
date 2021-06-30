@@ -70,6 +70,18 @@ class TicketPurchase(BasePurchase):
         self._data["issuer_name"] = issuer.real_name
         self._data["issuer_username"] = issuer.username
 
+    # activated
+    @property
+    def activated(self):
+        timestamp = helper.safe_list_get(self._data, "activated")
+        if timestamp:
+            return datetime.fromtimestamp(timestamp).strftime(
+                '%Y-%m-%d %H:%M:%S') + " UTC"
+
+    @activated.setter
+    def activated(self, activated: float):
+        self._data["activated"] = activated
+
     # Functions
 
     def set_ticket_info(self, ticket: Ticket):
@@ -81,6 +93,13 @@ class TicketPurchase(BasePurchase):
         return f"Билет '{self.ticket_name}' на BadFest 2021!\n" \
                f"Стоимость: {self.total_amount / 100}р.\n" \
                f"Дата покупки: {self.created} (UTC)"
+
+    def pretty_detailed_html(self):
+        return f"Владелец билета: {helper.safe_list_get(self._data, 'user_name')}\n"\
+               f"Сам билет: {helper.safe_list_get(self._data, 'ticket_name')}\n"\
+               f"Чо там внутри: {helper.safe_list_get(self._data, 'ticket_description')}\n" \
+               f"Активирован: {self.activated if self.activated else 'нет'}"
+
 
     def create_image(self):
         # generate qr
