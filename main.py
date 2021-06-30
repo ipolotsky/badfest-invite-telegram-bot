@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # pylint: disable=C0116
-
+import json
 import logging
 import random
 import re
 import time
 from datetime import datetime
 
+import requests
 from emoji import emojize
 from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
@@ -37,7 +38,7 @@ from telegram.ext import (
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
-
+QRCODE_SERVICE_API_URL = 'http://api.qrserver.com/v1/read-qr-code/'
 BULK_SEND_SLEEP_STEP = 25
 
 CONVERSATION_NAME = "user_states_conversation"
@@ -48,7 +49,8 @@ store = FirebasePersistence()
 # Conversation states
 STARTING, WAITING_START_MANUAL_CODE, WAITING_NAME, WAITING_INSTA, \
 WAITING_VK, WAITING_APPROVE, WAITING_PAYMENT, \
-WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD, ADMIN_BROADCAST = range(1, 12)
+WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD, ADMIN_BROADCAST,\
+ADMIN_CHECKIN = range(1, 13)
 
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2021. Вводи код от друга либо нажимай на кнопку "Хочу на фест"!'),
@@ -79,6 +81,7 @@ BUTTON_ADMIN_CHECK_NEEDED = "Надо проверить"
 BUTTON_ADMIN_STATS = "Статистика"
 BUTTON_ADMIN_CSV = "Покупки CSV"
 BUTTON_ADMIN_MERCH = "Весь мерч"
+BUTTON_ADMIN_CHECKIN = "Регистрация"
 BUTTON_ADMIN_KARINA = "Карина-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
 BUTTON_ADMIN_ALL = "Все пользователи"
@@ -109,7 +112,7 @@ def admin_keyboard(buttons=None):
         buttons = []
     buttons.append([str(BUTTON_ADMIN_BROADCAST), str(BUTTON_ADMIN_CSV), str(BUTTON_ADMIN_STATS)])
     buttons.append([str(BUTTON_ADMIN_CHECK_NEEDED), str(BUTTON_ADMIN_WAITING_LIST), str(BUTTON_ADMIN_ALL)])
-    buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_MERCH), str(BUTTON_BACK)])
+    buttons.append([str(BUTTON_ADMIN_ART_REQUESTS), str(BUTTON_ADMIN_CHECKIN), str(BUTTON_BACK)])
     return buttons
 
 
@@ -934,6 +937,64 @@ def admin_action_dashboard(update: Update, context: CallbackContext):
     return ADMIN_DASHBOARD
 
 
+def admin_action_checkin_photo_code(update: Update, context: CallbackContext):
+    update.message.reply_text("Начинаю распознование, в яме и песках это может быть не быстро...")
+
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    file = context.bot.getFile(update.message.photo[-1].file_id)
+    response = requests.post(url=QRCODE_SERVICE_API_URL, params={'fileurl': file.file_path})
+    json_response = json.loads(response.content)
+    if response.status_code != 200:
+        update.message.reply_text(f"Чет не получилось тут qr-код найти, попробуй еще разок сфоткать.")
+        return None
+
+    try:
+        if json_response[0]['symbol'][0]['error']:
+            update.message.reply_text(f"Чет не получилось тут qr-код найти, попробуй еще разок сфоткать. Детали: {json_response[0]['symbol'][0]['error']}" )
+            return None
+
+        code = json_response[0]['symbol'][0]['data'].strip()
+        admin_function_check_code(update, code)
+
+    except:
+        update.message.reply_text(
+            f"Чет не получилось тут qr-код найти, попробуй еще разок сфоткать")
+
+
+def admin_action_checkin_text_code(update: Update, context: CallbackContext):
+    update.message.reply_text("Такс, начинаю сверять билет, в яме и песках это может быть не быстро...")
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    code = update.message.text.strip()
+    admin_function_check_code(update, code)
+
+
+def admin_function_check_code(update: Update, code: str):
+    try:
+        ticket_purchase = TicketPurchase.get(code)
+        if ticket_purchase.activated:
+            update.message.reply_text(f"УЖЕ ЗАРЕГИСТРИРОВАН! НЕ ПОДДАВАТЕСЬ НА РАЗГОВОРЫ С МОШЕННИКАМИ!\n\n" +
+                                      ticket_purchase.pretty_detailed_html())
+        else:
+            ticket_purchase.activated = datetime.now().timestamp()
+            ticket_purchase.save()
+            update.message.reply_html(f"<b>ФУК ЕЕЕЕЕ! Успешно зареган!</b>\n\n"
+                                      f"Выдай участнику маску, попшикай на руки, скажи, что ковид и вот это вот все."
+                                      f"\n\n"
+                                      f"А теперь выдавай мерч, если это есть в билете.\n\n" +
+                                      ticket_purchase.pretty_detailed_html())
+
+    except:
+        update.message.reply_text("Хмм... какая-то хуита. Нет такого билета.")
+
+
 def admin_broadcast_set(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
@@ -976,16 +1037,28 @@ def admin_action_broadcast(update: Update, context: CallbackContext):
     return ADMIN_BROADCAST
 
 
-def admin_action_broadcast_back(update: Update, context: CallbackContext):
+def admin_action_back_to_dashboard(update: Update, context: CallbackContext):
     user = User.get(update.effective_user.id)
     if not user or not user.admin:
         update.message.reply_text("Ну-ка! Куда полез!?")
         return None
     update.message.reply_text(
-        'Приходи в другой раз с готовым текстом!',
+        'Кк',
         reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True,
                                          ), disable_web_page_preview=True)
     return ADMIN_DASHBOARD
+
+
+def admin_action_registration(update: Update, context: CallbackContext):
+    user = User.get(update.effective_user.id)
+    if not user or not user.admin:
+        update.message.reply_text("Ну-ка! Куда полез!?")
+        return None
+
+    update.message.reply_text(
+        'Отправь фотку билета или сам код (если распознаешь обычной камерой и у тебя не старый андроид)',
+        reply_markup=ReplyKeyboardMarkup([[str(BUTTON_BACK)]], resize_keyboard=True,), disable_web_page_preview=True)
+    return ADMIN_CHECKIN
 
 
 def admin_action_back(update: Update, context: CallbackContext):
@@ -1424,6 +1497,7 @@ conv_admin_handler = ConversationHandler(
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECK_NEEDED)}$'),
                            admin_show_approval_list, pass_user_data=True),
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_MERCH)}$'), admin_show_merch_list),
+            MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_CHECKIN)}$'), admin_action_registration),
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_ART_REQUESTS)}$'), admin_show_art_requests),
             MessageHandler(Filters.regex(f'^{str(BUTTON_ADMIN_WAITING_LIST)}$'),
                            admin_show_approval_list, pass_user_data=True),
@@ -1435,9 +1509,14 @@ conv_admin_handler = ConversationHandler(
             MessageHandler(Filters.regex(f'^\/[0-9]+$'), admin_show_one_user)
         ],
         ADMIN_BROADCAST: [
-            MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), admin_action_broadcast_back),
+            MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), admin_action_back_to_dashboard),
             MessageHandler(Filters.text, admin_broadcast_set),
             CallbackQueryHandler(admin_send_broadcast),
+        ],
+        ADMIN_CHECKIN: [
+            MessageHandler(Filters.regex(f'^{BUTTON_BACK}'), admin_action_back_to_dashboard),
+            MessageHandler(Filters.photo, admin_action_checkin_photo_code),
+            MessageHandler(Filters.text, admin_action_checkin_text_code),
         ]
     },
     fallbacks=[],
