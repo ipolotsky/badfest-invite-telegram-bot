@@ -205,7 +205,7 @@ class TicketPurchase(BasePurchase):
                       'user', 'user_name', 'user_username',
                       'ticket_description', 'id', 'created',
                       'provider_payment_charge_id', 'telegram_payment_charge_id', 'currency',
-                      'issuer_username', 'issuer_name', 'issuer']
+                      'issuer_username', 'issuer_name', 'issuer', 'activated']
 
         # csv data
         rows = [purchase._data for purchase in TicketPurchase.all()]
