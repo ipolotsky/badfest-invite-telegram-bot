@@ -86,7 +86,7 @@ class Invite:
 
     def pretty_html(self, index: int = None):
         html = emojize(":handshake:",
-                       use_aliases=True) + f" <b>Приглашение на BadFest2021 от {self.creator.real_name}</b>\n"
+                       use_aliases=True) + f" <b>Приглашение на BadFest2022 от {self.creator.real_name}</b>\n"
         if self.activated():
             html += f"Выдано и активировано <a href='tg://user?id={self.participant.id}'>{self.participant.username}</a>"
         else:

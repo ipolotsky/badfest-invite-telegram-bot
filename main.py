@@ -53,20 +53,20 @@ WAITING_FOR_MANUAL_CODE, READY_DASHBOARD, ADMIN_DASHBOARD, ADMIN_BROADCAST,\
 ADMIN_CHECKIN = range(1, 13)
 
 state_texts = dict([
-    (STARTING, 'Привет! Это бот BadFest 2021. Вводи код от друга либо нажимай на кнопку "Хочу на фест"!'),
+    (STARTING, 'Привет! Это бот BadFest 2022. Вводи код от друга либо нажимай на кнопку "Хочу на фест"!'),
     (WAITING_START_MANUAL_CODE, 'Отлично! Вводи его скорее!'),
     (WAITING_NAME, 'Такс, давай знакомиться! Пара вопросов, чтобы мы узнали, кто ты такой(ая). \nКак тебя зовут?'),
     (WAITING_INSTA, 'Скинь, плиз, ссылку на свою инсту'),
     (WAITING_VK, 'А теперь ссылку на свой vk'),
     (WAITING_APPROVE, 'Ну все, теперь жди - как только модераторы тебя подтвердят, тебе прилетят реферальные '
                       'ссылки, чтобы пригласить друзей, а также ты сможешь оплатить билет прямо тут в боте.'),
-    (WAITING_PAYMENT, "Хей! Ты принят! Теперь ты можешь покупать билет, а также у тебя есть две ссылки,"
+    (WAITING_PAYMENT, "Хей! Ты принят! Теперь ты можешь покупать билет, а также у тебя есть ссылки,"
                       " по которым ты можешь пригласить друзей.\n"
                       "Приглашай только тех, за кого можешь поручиться =)" \
                       "\nИ не забывай про билеты - они будут дорожать каждую неделю." \
                       "\n\nИспользуй кнопки бота для перехода к билетам и ссылкам для друзей."),
     (WAITING_FOR_MANUAL_CODE, "Супер! Введи код, плиз:"),
-    (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2021!\n"
+    (READY_DASHBOARD, "Ура! У тебя есть билет на BadFest 2022!\n"
                       "Полезные ссылки:\n"
                       " - <a href='https://t.me/badfest'>Канал с новостями фестиваля</a>\n"
                       " - <a href='https://t.me/joinchat/S6eWQnc4LxbJs_bU'>Чат участников фестиваля</a>\n"
@@ -82,18 +82,18 @@ BUTTON_ADMIN_STATS = "Статистика"
 BUTTON_ADMIN_CSV = "Покупки CSV"
 BUTTON_ADMIN_MERCH = "Весь мерч"
 BUTTON_ADMIN_CHECKIN = "Регистрация"
-BUTTON_ADMIN_KARINA = "Карина-кнопка"
+BUTTON_ADMIN_KARINA = "Art-кнопка"
 BUTTON_ADMIN_WAITING_LIST = "В списке ожидания"
 BUTTON_ADMIN_ALL = "Все пользователи"
 BUTTON_ADMIN_BROADCAST = "Broadcast"
-BUTTON_ADMIN_ART_REQUESTS = "Карина"
+BUTTON_ADMIN_ART_REQUESTS = "Art"
 BUTTON_I_HAVE_CODE = "У меня есть код"
 BUTTON_BACK = "Назад"
 BUTTON_INVITES = "Приглашения"
 BUTTON_TICKETS = "Билеты"
 BUTTON_MY_TICKET = "Мой билет"
-BUTTON_GOD = "Чей я бог"
-BUTTON_INFO = "Про BadFest2021"
+BUTTON_GOD = "Не нажимай"
+BUTTON_INFO = "Про BadFest2022"
 BUTTON_STATUS = "Как у меня дела"
 BUTTON_MERCH = "Мерч"
 BUTTON_REQUEST_FOR_ART = "Хочу делать арт-объект!"
@@ -192,7 +192,7 @@ def action_start(update: Update, context: CallbackContext) -> None:
             return None
 
         invite = Invite.get(code)
-        reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2021 от {invite.creator.real_name}.\n"
+        reply_text = f"Хей! Это персональное тебе приглашение на BadFest 2022 от {invite.creator.real_name}.\n"
         update.message.reply_text(reply_text,
                                   reply_markup=ReplyKeyboardMarkup([[str(BUTTON_MERCH)] if Settings.enable_merch() else []],
                                                                    resize_keyboard=True,
@@ -331,7 +331,7 @@ def action_enter_start_manual_code(update: Update, context: CallbackContext):
             return None
 
     if invite.activated():
-        update.message.reply_text("Этот код уже активирован - попроси у друга новый", reply_markup=ReplyKeyboardMarkup(
+        update.message.reply_text("Этот код уже активирован - попроси у друга(подруги) новый", reply_markup=ReplyKeyboardMarkup(
             [[str(BUTTON_BACK)]], resize_keyboard=True,
             ), disable_web_page_preview=True)
         return None
@@ -687,7 +687,7 @@ def process_successful_merch(update: Update, context: CallbackContext) -> None:
 
 def show_info(update: Update, context: CallbackContext):
     update.message.reply_html(
-        "<b>BADFEST 2021</b>\n\n"
+        "<b>BADFEST 2022</b>\n\n"
         "Время быть плохим!\n"
         "Ежегодный фестиваль музыки, алкоголя, веселья, творчества с твоим участием в главной роли. Ничего особо не обещаем, будет плохо, обязательно приезжай. Ты пожалеешь, но тебе понравится.\n"
         "Увидимся скоро!\n\n"
@@ -739,7 +739,7 @@ def show_my_god(update: Update, context: CallbackContext):
     try:
         gods = Settings.gods()['gods']
         update.message.reply_html(
-            text=f"Ты - бог {random.choice(gods)}",
+            text=f"{random.choice(gods)}",
             reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(user), resize_keyboard=True),
             disable_web_page_preview=True)
@@ -986,7 +986,6 @@ def admin_function_check_code(update: Update, code: str):
             ticket_purchase.activated = datetime.now().timestamp()
             ticket_purchase.save()
             update.message.reply_html(f"<b>ФУК ЕЕЕЕЕ! Успешно зареган!</b>\n\n"
-                                      f"Выдай участнику маску, попшикай на руки, скажи, что ковид и вот это вот все."
                                       f"\n\n"
                                       f"А теперь выдавай мерч, если это есть в билете.\n\n" +
                                       ticket_purchase.pretty_detailed_html())
@@ -1167,15 +1166,18 @@ def admin_show_art_requests(update: Update, context: CallbackContext):
         return None
 
     i = 1
-    art_requests = ArtRequest.all()
-    for a_request in art_requests:
-        reply_html = a_request.pretty_html(i)
-        update.message.reply_html(
-            text=reply_html,
-            disable_web_page_preview=True)
-        i += 1
+    try:
+        art_requests = ArtRequest.all()
+        for a_request in art_requests:
+            reply_html = a_request.pretty_html(i)
+            update.message.reply_html(
+                text=reply_html,
+                disable_web_page_preview=True)
+            i += 1
 
-    stats = f"Всего заявок: {str(len(art_requests))}"
+        stats = f"Всего заявок: {str(len(art_requests))}"
+    except:
+        stats = f"Заявок нет"
 
     update.message.reply_html(
         stats, reply_markup=ReplyKeyboardMarkup(
@@ -1350,10 +1352,15 @@ def admin_send_broadcast(update: Update, context: CallbackContext):
         }
     )
 
-    context.bot.send_message(admin_user.id, f"Терпение - золото (хуита, конечно). {len(users) - len(bad_users)} успешно отправилось!")
+    context.bot.send_message(
+        admin_user.id, f"Терпение - золото (хуита, конечно). {len(users) - len(bad_users)} успешно отправилось!",
+        reply_markup=ReplyKeyboardMarkup(admin_keyboard(), resize_keyboard=True,), disable_web_page_preview=True)
+
     if len(bad_users) > 0:
         bad_nicknames = [user.username for user in bad_users]
         context.bot.send_message(admin_user.id, f"Кроме этих пидорасов: {', '.join(bad_nicknames)}")
+
+    return ADMIN_DASHBOARD
 
 
 def admin_gift(update: Update, context: CallbackContext) -> None:

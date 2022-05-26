@@ -38,7 +38,7 @@ class Settings:
 
     @staticmethod
     def bot_name() -> str:
-        return "badbarbot" if Settings.IS_TEST else "badfestbot"
+        return "badbarbot" if Settings.IS_TEST else "BadFest2022Bot"
 
     @staticmethod
     def gods():

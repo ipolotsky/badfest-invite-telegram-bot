@@ -90,7 +90,7 @@ class TicketPurchase(BasePurchase):
         self._data["ticket_description"] = ticket.description
 
     def pretty_html(self, index: int = None):
-        return f"Билет '{self.ticket_name}' на BadFest 2021!\n" \
+        return f"Билет '{self.ticket_name}' на BadFest 2022!\n" \
                f"Стоимость: {self.total_amount / 100}р.\n" \
                f"Дата покупки: {self.created} (UTC)"
 
@@ -117,7 +117,7 @@ class TicketPurchase(BasePurchase):
         text_img = Image.new('RGB', (ticket_width, 420), color=(255, 218, 0))
         d = ImageDraw.Draw(text_img)
         master_font = ImageFont.FreeTypeFont('fonts/HelveticaBlack.ttf', 60, encoding="utf-8")
-        d.text((50, 50), "BadFest 2021 / 3-4 июля", fill=(0, 0, 0), font=master_font)
+        d.text((50, 50), "BadFest 2022 / 2-3 июля", fill=(0, 0, 0), font=master_font)
         slave_font = ImageFont.FreeTypeFont('fonts/arial.ttf', 40, encoding="utf-8")
         d.text((60, 130), 'Имя: ' + self.user.real_name, fill=(0, 0, 0), font=slave_font)
         d.text((60, 180), 'Тип: ' + self.ticket_name, fill=(0, 0, 0), font=slave_font)
@@ -159,7 +159,7 @@ class TicketPurchase(BasePurchase):
     @staticmethod
     def statistics():
         purchase_list = TicketPurchase.all()
-        groups = collections.defaultdict(list)
+        groups = collections.defaultdict(dict)
         groups["ОРГИ ПИДОРЫ"] = {'count': 0, 'items': []}
         groups["БОМЖ"] = {'count': 0, 'items': []}
         groups["НОРМ"] = {'count': 0, 'items': []}

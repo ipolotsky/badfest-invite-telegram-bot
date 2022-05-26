@@ -56,7 +56,7 @@ class MerchPurchase(BasePurchase):
         self._data["merch_description"] = merch.description
 
     def pretty_html(self, index: int = None):
-        return emojize(":fire:", use_aliases=True) + f"Мерч '{self.merch_name}' на BadFest 2021 твой!\n" \
+        return emojize(":fire:", use_aliases=True) + f"Мерч '{self.merch_name}' на BadFest 2022 твой!\n" \
                f"Стоимость: {self.total_amount / 100}р.\n" \
                f"Дата покупки: {self.created} (UTC)"
 
