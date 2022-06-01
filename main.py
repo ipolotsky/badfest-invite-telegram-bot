@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 
 import requests
+import sentry_sdk
 from emoji import emojize
 from typing import Optional
 from telegram import ReplyKeyboardMarkup, Update, ParseMode, TelegramError, ReplyKeyboardRemove, LabeledPrice
@@ -1635,4 +1636,12 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    sentry_sdk.init(
+        Settings.sentry_dsn(),
+        environment='production' if not Settings.IS_TEST else 'testing',
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        # We recommend adjusting this value in production.
+        traces_sample_rate=1.0
+    )
     main()
