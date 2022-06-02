@@ -4,7 +4,6 @@ from utils import helper
 
 
 class Settings:
-
     IS_TEST = False
 
     @staticmethod
@@ -45,3 +44,8 @@ class Settings:
         with open(f"gods.json") as file:
             return json.load(file)
 
+    @staticmethod
+    def sentry_dsn():
+        if Settings.IS_TEST:
+            return None
+        return os.environ.get("SENTRY_DSN")
