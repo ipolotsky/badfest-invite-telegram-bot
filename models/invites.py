@@ -90,7 +90,7 @@ class Invite:
         if self.activated():
             html += f"Выдано и активировано <a href='tg://user?id={self.participant.id}'>{self.participant.username}</a>"
         else:
-            html += f"Твой код: {self.id}. Переходи по этой ссылке и регайся в боте: " \
+            html += f"Твой код: {self.id}. Переходи по этой ссылке в бот: " \
                     f"<a href='https://t.me/{Settings.bot_name()}?start={self.id}'>https://t.me/{Settings.bot_name()}?start={self.id}</a> " \
                     f"и нажимай Start"
         return html

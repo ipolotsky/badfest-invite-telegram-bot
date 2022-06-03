@@ -56,7 +56,7 @@ ADMIN_CHECKIN = range(1, 13)
 state_texts = dict([
     (STARTING, 'Привет! Это бот BadFest 2022. Вводи код от друга либо нажимай на кнопку "Хочу на фест"!'),
     (WAITING_START_MANUAL_CODE, 'Отлично! Вводи его скорее!'),
-    (WAITING_NAME, 'Такс, давай знакомиться! Пара вопросов, чтобы мы узнали, кто ты такой(ая). \nКак тебя зовут?'),
+    (WAITING_NAME, 'Такс, давай знакомиться! Пара вопросов, чтобы мы узнали, кто ты такой(ая). \n\nНапиши ответным сообшением, как тебя зовут - вот прям сейчас напиши!'),
     (WAITING_INSTA, 'Скинь, плиз, ссылку на свою инсту'),
     (WAITING_VK, 'А теперь ссылку на свой vk'),
     (WAITING_APPROVE, 'Ну все, теперь жди - как только модераторы тебя подтвердят, тебе прилетят реферальные '
@@ -916,7 +916,7 @@ def show_state_text(update: Update, context: CallbackContext):
     state = convs.get(tuple([update.effective_user.id]))
     if state:
         update.message.reply_text(
-            state_texts[state] + f"\nИспользуй кнопочки снизу, если что-то хочешь.", reply_markup=ReplyKeyboardMarkup(
+            state_texts[state], reply_markup=ReplyKeyboardMarkup(
                 get_default_keyboard_bottom(User.get(update.effective_user.id)),
                 resize_keyboard=True,
                 ), disable_web_page_preview=True, parse_mode=ParseMode.HTML)
