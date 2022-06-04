@@ -892,6 +892,12 @@ def precheckout_callback(update: Update, _: CallbackContext) -> None:
             return None
 
         try:
+
+            if query.total_amount/100 != ticket.price:
+                query.answer(ok=False, error_message=f"Цена на билет уже возрасла до {ticket.price}р. "
+                                                     f"Чтобы обновить - нажми на кнопку Билеты и покупай заново!")
+                return None
+
             user = User.get(query.from_user.id)
 
             if user.status == User.STATUS_READY:
