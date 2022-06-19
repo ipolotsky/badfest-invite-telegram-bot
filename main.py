@@ -827,6 +827,12 @@ def show_merch(update: Update, context: CallbackContext):
 
 
 def show_tickets(update: Update, context: CallbackContext):
+    if bool(Settings.stop_tickets()):
+        update.message.reply_html(
+            text=Settings.stop_tickets_text(),
+            disable_web_page_preview=True)
+        return None
+
     user = User.get(update.effective_user.id)
     if user.status != User.STATUS_APPROVED:
         update.message.reply_text("Рано еще!")

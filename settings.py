@@ -7,6 +7,18 @@ class Settings:
     IS_TEST = False
 
     @staticmethod
+    def stop_tickets():
+        from persistence.firebase_persistence import FirebasePersistence
+        settings = FirebasePersistence().settings.get()
+        return helper.safe_list_get(settings, "stop_tickets", False)
+
+    @staticmethod
+    def stop_tickets_text():
+        from persistence.firebase_persistence import FirebasePersistence
+        settings = FirebasePersistence().settings.get()
+        return helper.safe_list_get(settings, "stop_tickets_text", "Сейчас билеты не продаются!")
+
+    @staticmethod
     def max_invites():
         from persistence.firebase_persistence import FirebasePersistence
         settings = FirebasePersistence().settings.get()
