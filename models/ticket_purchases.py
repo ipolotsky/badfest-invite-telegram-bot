@@ -164,6 +164,7 @@ class TicketPurchase(BasePurchase):
         groups["БОМЖ"] = {'count': 0, 'items': []}
         groups["НОРМ"] = {'count': 0, 'items': []}
         groups["ИЛИТА"] = {'count': 0, 'items': []}
+        groups["Бля, опоздал!"] = {'count': 0, 'items': []}
         taxes = 0
         total = 0
         for obj in purchase_list:
